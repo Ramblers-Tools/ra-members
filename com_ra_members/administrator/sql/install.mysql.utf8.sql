@@ -665,7 +665,7 @@ ALTER TABLE `#__ra_organisations`
 COMMIT;
 
 # ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `#___ra_roles` (
+CREATE TABLE IF NOT EXISTS `#__ra_roles` (
   `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
   `member_id` int NOT NULL,
   `organisation_code` varchar(4) COLLATE utf8mb4_unicode_ci NOT NULL,

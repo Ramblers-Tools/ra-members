@@ -8,6 +8,7 @@
  * 25/04/26 CB created
  * 22/06/26 CB new reports for Volunteers, Affilites
  * 16/07/26 CB new formatting
+ * 27/07/26 CB recentSubscriptions
  */
 defined('_JEXEC') or die;
 
@@ -38,6 +39,7 @@ echo $breadcrumbs;
 $mailHelper = new MailHelper;
 $code = $mailHelper->getDefaultGroup();
 
+// See if we are running the full version of MailMan, or the corporate sub-set
 if (!empty($code) && $code !== 'N') {
     $sql = 'SELECT id, name ';
     $sql .= 'FROM #__ra_organisations ';
@@ -48,7 +50,7 @@ if (!empty($code) && $code !== 'N') {
     } else {
         $subheading = $code . ' ' . (!empty($item->name) ? htmlspecialchars($item->name) : 'N/A');
     }
-    $group_report_heading = 'Group reports for ' . $code; 
+    $group_report_heading = 'Group reports for ' . $code;
 } else {
     $subheading = 'All records';
     $group_report_heading = 'Group reports';
@@ -57,7 +59,6 @@ echo '<h4>Scope ' . $subheading . '</h4>';
 ?>
 
 <?php
-
 $admin_reports = [
     // only show these reports to superusers
 
@@ -70,12 +71,12 @@ $reports = [
     'Membership statistics' => 'administrator/index.php?option=com_ra_members&task=reports.memberStatistics',
 //    'Members by Group' => 'administrator/index.php?option=com_ra_members&task=reports.membersByGroup',
 //    'Analysis of members by group' => 'administrator/index.php?option=com_ra_members&task=reports.analyseListMembership',
-    'Recent updates' => 'administrator/index.php?option=com_ra_members&task=reports.recentUpdates',
+    'Recent updates to Members' => 'administrator/index.php?option=com_ra_members&task=reports.recentUpdates',
+    'Recent Subscriptions' => 'administrator/index.php?option=com_ra_members&task=reports.recentUpdates&type=subscriptions',
     'Recent joiners' => 'administrator/index.php?option=com_ra_members&task=reports.recentJoiners',
     'Changed group' => 'administrator/index.php?option=com_ra_members&task=reports.changedGroup',
     'Volunteers' => 'administrator/index.php?option=com_ra_members&task=reports.generalReport&mode=V',
     'Affiliate Members' => 'administrator/index.php?option=com_ra_members&task=reports.generalReport&mode=A',
-    'Joint members' => 'administrator/index.php?option=com_ra_members&task=reports.jointMembers',
     'Lapsed members' => 'administrator/index.php?option=com_ra_members&task=reports.lapsedMembers',
     'Members with duplicate names' => 'administrator/index.php?option=com_ra_members&task=reports.duplicateNames',
     'Members joined Ramblers, by month' => 'administrator/index.php?option=com_ra_members&task=reports.analyseJoinedRamblers',
@@ -87,6 +88,11 @@ $reports = [
 //if ($code !== 'N') {
 //    $reports[] = 'Export members' => 'administrator/index.php?option=com_ra_members&task=reports.exportMembers';
 //}
+$joint_reports = [
+    'All Joint members' => 'administrator/index.php?option=com_ra_members&task=reports.jointMembers&scope=G',
+    'Shared Email' => 'administrator/index.php?option=com_ra_members&task=reports.sharedEmail&scope=G',
+    'Shared Address' => 'administrator/index.php?option=com_ra_members&task=reports.sharedAddress&scope=G',
+];
 
 $systemReports = array();
 
@@ -98,6 +104,7 @@ if (($this->toolsHelper->isSuperuser()) || ($code == 'N')) {
     $systemReports = array_merge($systemReports, $reports);
 }
 
+// Whether or not to show area-level reports is a configuration
 $areaReports = array();
 $show_area_reports = $this->params->get('show_area_reports', 0);
 
@@ -122,10 +129,11 @@ if ($code !== 'N') {
         <?php
         echo '<div class="dashboard-grid">';
         echo $this->toolsHelper->buildDashboardReportBlock('System reports', $systemReports);
-        if ($show_area_reports == '1') {       
+        if ($show_area_reports == '1') {
             echo $this->toolsHelper->buildDashboardReportBlock('Area reports', $areaReports);
         }
         echo $this->toolsHelper->buildDashboardReportBlock($group_report_heading, $groupReports);
+        echo $this->toolsHelper->buildDashboardReportBlock('Joint members', $joint_reports);
         echo '</div>';
         echo $this->toolsHelper->backButton($back);
         ?>
