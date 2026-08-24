@@ -26,4 +26,12 @@ foreach ([false, 0, '0', '', null, 'no', 'false'] as $disabled) {
     }
 }
 
+$loaderSource = file_get_contents(
+    dirname(__DIR__) . '/com_ra_members/site/src/Helper/LoadHelper.php'
+);
+
+if (strpos($loaderSource, "getParams('com_ra_mailman')->get('default_group'") !== false) {
+    throw new RuntimeException('RA Members must not obtain default_group from com_ra_mailman.');
+}
+
 echo "MemberFeedMode tests passed\n";

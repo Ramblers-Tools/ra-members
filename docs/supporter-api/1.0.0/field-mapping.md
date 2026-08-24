@@ -25,7 +25,7 @@ more than one profile may link to the same `#__users.id`.
 | `membershipEndDate` | `#__ra_profiles.membershipEndDate` | Store as date |
 | `teamStatus` | `#__ra_profiles.teamStatus` | Store for reporting |
 | `teamRelationshipFrom` | `#__ra_profiles.teamRelationshipFrom` | Store as date |
-| requested `team_code` | `#__ra_profiles.home_group` and `groupCode` | Derived from `com_ra_tools.default_group`; RA Mailman's similarly named parameter is not used by the JSON import. Until these redundant fields are rationalised, an import must populate a blank `home_group` from this value. |
+| requested `team_code` | `#__ra_profiles.home_group` and `groupCode` | Derived from `com_ra_tools.default_group`; RA Mailman's similarly named parameter is not used by RA Members. Until these redundant fields are rationalised, an import must populate a blank `home_group` from this value. |
 | `wellbeingWalker` | `#__ra_profiles.wellbeingWalker` | Store as `1`/`0` |
 | `walkLeader` | `#__ra_profiles.walkLeader` | Store as `1`/`0` |
 | `volunteerRoles` | `#__ra_roles`, `#__ra_profiles.sourcePayload` | Collection exception: store every role property in child rows and retain the complete array snapshot; there is no dedicated profile column. |

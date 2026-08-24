@@ -997,10 +997,10 @@ public function getJson(int $apiSiteId, string $code)
         ));
 
         if ($mode === MemberFeedMode::INSIGHT_PRIMARY && !$preview) {
-            $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_mailman')->get('default_group', '')));
+            $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_tools')->get('default_group', '')));
 
             if (!preg_match('/^[A-Z0-9]{4}$/', $code)) {
-                $this->messages[] = 'com_ra_mailman default_group must contain four letters or digits.';
+                $this->messages[] = 'com_ra_tools default_group must contain four letters or digits.';
                 return false;
             }
 
