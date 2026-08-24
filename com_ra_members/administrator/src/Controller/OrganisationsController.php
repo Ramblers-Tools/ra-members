@@ -48,12 +48,16 @@ class OrganisationsController extends AdminController {
         return parent::getModel($name, $prefix, $config);
     }
 
-    public function loadMembers($code = 'NS03') {
-        // temp code for invoking the load process
-        $code = $this->app->input->getAlnum('code');
+    public function loadMembers() {
+        $apiSiteId = $this->app->input->getInt('api_site_id');
 
         $loadHelper = new LoadHelper;
-        $result = $loadHelper->loadMembers($code);
+        $result = $apiSiteId > 0 ? $loadHelper->loadMembers($apiSiteId) : false;
+
+        if ($apiSiteId < 1) {
+            $loadHelper->messages[] = 'A positive api_site_id is required.';
+        }
+
         echo 'Load process completed<br>';
         foreach ($loadHelper->messages as $message) {
             echo $message . '<br>';

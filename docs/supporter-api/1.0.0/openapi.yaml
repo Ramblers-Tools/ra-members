@@ -1,0 +1,353 @@
+openapi: 3.0.3
+info:
+  title: Ramblers Team Emails
+  description: Draft contract captured from SwaggerHub for implementation and regression tests.
+  version: 1.0.0
+  contact:
+    email: membership@ramblers.org.uk
+servers:
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/JAMESKEARS/ramblers-group-email/1.0.0
+paths:
+  /get_supporters:
+    get:
+      summary: Retrieves the current supporters for the team
+      operationId: getTeamSupporters
+      description: >-
+        Returns members (including payment pending and suspended), affiliated
+        members, volunteers with a current role for the team, and wellbeing walkers.
+      responses:
+        "200":
+          description: Team supporters returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/supporter"
+        "400":
+          description: Bad request, typically a missing field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getSupportersError"
+        "401":
+          description: Unauthorised entirely or for the requested team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getSupportersError"
+        "503":
+          description: System unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getSupportersError"
+  /bounced_email:
+    post:
+      summary: Records a bounced email address
+      operationId: notifyBounce
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/bouncedEmail"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateSuccess"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+        "401":
+          description: Unauthorised
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+        "404":
+          description: Supporter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+        "503":
+          description: System unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+  /unsubscribe:
+    post:
+      summary: Records a supporter unsubscribe
+      operationId: notifyUnsubscribe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/unsubscribeRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateSuccess"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+        "401":
+          description: Unauthorised
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+        "404":
+          description: Supporter not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+        "503":
+          description: System unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supporterUpdateError"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: query
+      name: api_key
+    TeamCodeAuth:
+      type: apiKey
+      in: query
+      name: team_code
+  schemas:
+    supporter:
+      type: object
+      properties:
+        membershipNo:
+          type: string
+          nullable: true
+          example: "1234567"
+        memberRef:
+          type: string
+          nullable: false
+          description: Immutable internal Ramblers reference present for every supporter.
+          example: "1234567"
+        contactId:
+          type: string
+          nullable: false
+          description: Salesforce identifier that can change after a merge or lead conversion.
+          example: 0033z000035G6MhAAK
+        title:
+          type: string
+          nullable: true
+          example: Mx
+        firstName:
+          type: string
+          nullable: true
+          example: Bob
+        lastName:
+          type: string
+          nullable: false
+          example: Smith
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: example@x.ramblers.org.uk
+        doNotEmail:
+          type: boolean
+          nullable: false
+          example: true
+        landline:
+          type: string
+          nullable: true
+          example: "0800 11 11 11"
+        mobile:
+          type: string
+          nullable: true
+          example: "07733 345233"
+        friendlyName:
+          type: string
+          nullable: false
+          example: John
+        membershipStatus:
+          type: string
+          nullable: true
+          enum: [Active, Payment pending, Suspended, Lapsed, Inactive, Resigned, null]
+        memberType:
+          type: string
+          nullable: true
+          enum:
+            - Corporate Membership
+            - Individual Life Membership
+            - Individual Membership
+            - Joint Life Membership
+            - Joint Membership
+            - Membership
+            - null
+        membershipJoinDate:
+          type: string
+          format: date
+          nullable: true
+        membershipExpiry:
+          type: string
+          format: date
+          nullable: true
+        membershipEndDate:
+          type: string
+          format: date
+          nullable: true
+        teamStatus:
+          type: string
+          nullable: false
+          enum: [Member, Affiliated, Volunteer, Wellbeing Walker]
+        teamRelationshipFrom:
+          type: string
+          format: date
+          nullable: true
+        wellbeingWalker:
+          type: boolean
+          nullable: false
+        walkLeader:
+          type: boolean
+          nullable: false
+        volunteerRoles:
+          type: array
+          items:
+            $ref: "#/components/schemas/volunteerRole"
+        noWalkProgram:
+          type: boolean
+          nullable: false
+        noCampaigning:
+          type: boolean
+          nullable: false
+        noSurveys:
+          type: boolean
+          nullable: false
+        canEmailVolunteers:
+          type: boolean
+          nullable: false
+        canEmailMembers:
+          type: boolean
+          nullable: false
+        canEmailWellbeingWalkers:
+          type: boolean
+          nullable: false
+        canViewMemberData:
+          type: boolean
+          nullable: false
+        canViewMemberDate:
+          type: boolean
+          nullable: false
+        emailConsent:
+          type: boolean
+          nullable: false
+        emailConsentLastUpdated:
+          type: string
+          format: date
+          nullable: true
+        postConsent:
+          type: boolean
+          nullable: false
+        postConsentLastUpdated:
+          type: string
+          format: date
+          nullable: true
+        phoneConsent:
+          type: boolean
+          nullable: false
+        phoneConsentLastUpdated:
+          type: string
+          format: date
+          nullable: true
+        emailConsentWellbeingWalks:
+          type: boolean
+          nullable: false
+    volunteerRole:
+      type: object
+      properties:
+        roleName:
+          type: string
+          nullable: false
+        startDate:
+          type: string
+          format: date
+          nullable: false
+        displayName:
+          type: string
+          nullable: true
+        walkLeaderStatus:
+          type: string
+          nullable: true
+        wellbeingWalksRole:
+          type: boolean
+          nullable: false
+    unsubscribeRequest:
+      type: object
+      properties:
+        emailAddress:
+          type: string
+          format: email
+          nullable: false
+        memberRef:
+          type: string
+          nullable: false
+    bouncedEmail:
+      type: object
+      properties:
+        emailAddress:
+          type: string
+          format: email
+          nullable: false
+        memberRef:
+          type: string
+          nullable: false
+        bounceType:
+          type: string
+          nullable: false
+          enum: [Hard, Soft]
+    supporterUpdateSuccess:
+      type: object
+      properties:
+        responseText:
+          type: string
+          enum: [Update processed, Bounce logged]
+    supporterUpdateError:
+      type: object
+      properties:
+        errorType:
+          type: string
+          enum:
+            - Email not recognised for this group
+            - Invalid email
+            - System unavilable
+            - Required field missing
+        errorDescription:
+          type: string
+    getSupportersError:
+      type: object
+      properties:
+        errorType:
+          type: string
+          enum: [Unauthorised, Bad request, System unavilable]
+        errorDescription:
+          type: string
+security:
+  - ApiKeyAuth: []
+    TeamCodeAuth: []

@@ -25,7 +25,8 @@ use Ramblers\Component\Ra_mailman\Site\Helpers\Mailhelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\JsonHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\UserHelper;
-use Ramblers\Component\Ra_members\Administrator\Table\MemberTable;
+use Ramblers\Component\Ra_members\Site\Service\SupporterApiConfig;
+use Ramblers\Component\Ra_tools\Administrator\Table\ProfileTable;
 
 class LoadHelper {
 
@@ -41,6 +42,7 @@ class LoadHelper {
     protected $userColumns;
     protected $duplicateFeedMembers = array();
     protected $duplicateFeedNotifications = array();
+    protected $currentGroupCode = '';
     private $counter = 0;
     public $batch_mode = false; // if true, messages are added to $this->messages instead of enqueued, for display at the end of the batch process
     public $comments;
@@ -169,6 +171,13 @@ class LoadHelper {
         }
     }
 
+    private function failLoad(string $message): bool
+    {
+        $this->messages[] = $message;
+        $this->logMessage($message, '3');
+        return false;
+    }
+
     private function getLegacyProfileByUserId($userId) {
         if ((int) $userId <= 0) {
             return null;
@@ -239,7 +248,7 @@ class LoadHelper {
     }
 
     private function loadProfileTable($memberId = 0) {
-        $profile = new MemberTable($this->db);
+        $profile = new ProfileTable($this->db);
 
         if ((int) $memberId > 0) {
             $profile->load((int) $memberId);
@@ -408,9 +417,7 @@ class LoadHelper {
                 }
 
                 $sharedProfiles = $this->getProfilesByUserId($existingUserId, (int) ($profileRow->member_id ?? 0));
-                $needsUserUpdate = $this->normaliseScalar($existingUser->name ?? null) !== $this->normaliseScalar($desiredName)
-                        || $this->normaliseScalar($existingUser->email ?? null) !== $email
-                        || $this->normaliseScalar($existingUser->username ?? null) !== $email;
+                $needsUserUpdate = $this->normaliseScalar($existingUser->name ?? null) !== $this->normaliseScalar($desiredName) || $this->normaliseScalar($existingUser->email ?? null) !== $email || $this->normaliseScalar($existingUser->username ?? null) !== $email;
 
                 if ($isDuplicateFeedEmail) {
                     $this->notifyDuplicateFeedEmail($email, $existingUser, $this->getProfilesByUserId($existingUserId));
@@ -593,123 +600,81 @@ class LoadHelper {
         return $this->toolsHelper->getValue($sql);
     }
 
-    public function getJson($code) {
-        $endpoint = '/api/groups/' . $code . '/members';
-        /*
-          $site_id is the id of the record in api_sites
-          $endpoint is the project_code/view_name (e.g. /api/index.php/v1/ra_events/events)
-          Derived from EventsHelper/getRemoteEvents, but generalised
-         */
-        $sql = 'SELECT * FROM #__ra_api_sites WHERE title="' . $code . '"';
-        $site = $this->toolsHelper->getItem($sql);
-        if ($site === false) {
-            $this->messages[] = 'Error looking up API site for code ' . $code . ': ' . $this->toolsHelper->error;
-            return false;
-        }
-        if (is_null($site)) {
-            $this->messages[] = 'No API site found for code ' . $code;
-            return false;
-        }
-        $token = trim($site->token);
+    private function getApiSiteConfig(int $apiSiteId): SupporterApiConfig {
+        $query = $this->db->getQuery(true)
+                ->select($this->db->quoteName(['id', 'url', 'token', 'state', 'sub_system']))
+                ->from($this->db->quoteName('#__ra_api_sites'))
+                ->where($this->db->quoteName('id') . ' = ' . $apiSiteId);
 
-        $baseUrl = rtrim(trim((string) $site->url), '/');
-        $baseUrl = preg_replace('#/api/groups$#', '', $baseUrl);
-        $baseUrl = preg_replace('#/api$#', '', $baseUrl);
+        $this->db->setQuery($query, 0, 1);
 
-        $url = $baseUrl . $endpoint;
-
-        // Force inclusion of records even if expriry date hase passed
-        $url .= '?includeExpired=true';
-
-        $error = '';
-        $responseHeaders = '';
-
-        if (JDEBUG) {
-            $message = 'Site id ' . $site->id . ', ';
-            $message .= 'Seeking data from ' . $url;
-            $this->messages[] = $message;
-            $message = 'Token is ' . $token;
-            $this->messages[] = $message;
-        }
-//      set up maximum time of 5 minutes
-        $max = 5 * 60;
-        set_time_limit($max);
-
-// HTTP request headers
-        $headers = [
-            'Accept: application/json',
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $token,
-        ];
-
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => $url,
-            CURLOPT_HEADER => false, // do not include header in output
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => 'utf-8',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_CONNECTTIMEOUT => $max,
-            CURLOPT_TIMEOUT => $max,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_2TLS,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-//            CURLOPT_REFERER => "com_ra_tools", // say who wants the feed
-            CURLOPT_HTTPHEADER => $headers,
-//        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false); // do not follow redirects
-//        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);  // do not output result
-                ]
-        );
-
-        $responseData = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        if ($responseData == false) {
-            $error = curl_error($curl);
-
-            if ($httpCode !== 200) {
-                $message = 'Error: ' . $httpCode;
-                $message .= ', ' . $error;
-                if ($this->toolsHelper->isSuperuser()) {
-                    $message .= ' ' . $url;
-                }
-                $this->messages[] = $message;
-                $this->messages[] = 'Error ' . $error;
-                return false;
-            }
-        }
-//        if (curl_errno($curl)) {
-//            echo curl_error($curl);
-//        }
-        curl_close($curl);
-
-        if ($httpCode !== 200) {
-            $message = 'Error: ' . $httpCode;
-            if ($httpCode == 401) {
-                $message .= 'Authorization Required (Token missing or invalid)';
-            } else {
-                $message .= $error;
-            }
-            $this->messages[] = $message;
-            $this->messages[] = 'Endpoint: ' . $url;
-            if ($responseHeaders !== '') {
-                $this->messages[] = 'Response data: ' . trim($responseData);
-            }
-//            return false;
-        }
-        $details = json_decode($responseData, true);
-        if ($details === null && json_last_error() !== JSON_ERROR_NONE) {
-            $this->messages[] = 'JSON decode error: ' . json_last_error_msg();
-        }
-        if (JDEBUG) {
-            //           echo '<b>Start of details</b><br>';
-            //           var_dump($details);
-            //           echo '<br><b>End of details</b><br>';
-            //           echo '<b>Start of response</b><br>';
-            //           echo $responseData;
-            //           echo '<br>========<br>';
-        }
-        return $details;
+        return SupporterApiConfig::fromRow($this->db->loadObject(), $apiSiteId);
     }
+
+public function getJson(int $apiSiteId, string $code)
+{
+    try {
+        $site = $this->getApiSiteConfig($apiSiteId);
+    } catch (\Throwable $exception) {
+        $this->logMessage('API site config error: ' . $exception->getMessage(), '3');
+        return false;
+    }
+
+    $separator = strpos($site->getUrl(), '?') === false ? '?' : '&';
+    /*
+    This consruct was created by chatGpt but does not work
+    $url = $site->getUrl() . $separator . http_build_query([
+        'api_key'   => $site->getToken(),
+        'team_code' => $code,
+    ], '', '&', PHP_QUERY_RFC3986);
+*/
+    $url = $site->getUrl() . $separator . 'api_key='  . $site->getToken() . '&team_code=' . $code;
+
+    if (JDEBUG) {
+        // do not log token
+        $this->messages[] = 'Requesting supporters for API site ID ' . $site->getId()
+         . ', URL ' . $url;
+    }
+
+    $curl = curl_init();
+    curl_setopt_array($curl, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 10,
+        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_TIMEOUT        => 120,
+        CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+        CURLOPT_CUSTOMREQUEST  => 'GET',
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json',
+        ],
+    ]);
+
+    $responseData = curl_exec($curl);
+    $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($curl);
+    curl_close($curl);
+
+    if ($responseData === false) {
+        $this->logMessage('Supporter feed cURL error: ' . $curlError, '3');
+        return false;
+    }
+
+    if ($httpCode !== 200) {
+        $snippet = substr(trim((string) $responseData), 0, 300);
+        $this->logMessage('Supporter feed HTTP ' . $httpCode . ' response: ' . $snippet, '3');
+        return false;
+    }
+
+    $decoded = json_decode($responseData, true);
+    if (!is_array($decoded)) {
+        $this->logMessage('Supporter feed JSON decode failed: ' . json_last_error_msg(), '3');
+        return false;
+    }
+
+    return $decoded;
+}
 
     private function getProfileBySalesforceId($salesforceId) {
         $query = $this->db->getQuery(true)
@@ -749,7 +714,8 @@ class LoadHelper {
     }
 
     function lookupMember($member_id) {
-        return $this->getValue("SELECT preferred_name FROM #__ra_profiless WHERE member_id=" . (INT) $member_id);
+        $sql = 'SELECT preferred_name FROM #__ra_profiles WHERE member_id=' . (int) $member_id;
+        return $this->toolsHelper->getValue($sql);
     }
 
     private function lookupPreferredName($member_id) {
@@ -787,6 +753,37 @@ class LoadHelper {
         $value = trim((string) $value);
 
         return ($value === '') ? null : $value;
+    }
+    
+    private function normaliseSupporterForLegacySync($member) {
+        $member = $this->normaliseMember($member);
+
+        // Stage A: new feed identity/member fields mapped to legacy keys.
+        if (!isset($member['salesforceId']) || $this->normaliseScalar($member['salesforceId']) === null) {
+            $member['salesforceId'] = $member['memberRef'] ?? null; // immutable identity in revised feed
+        }
+
+        if (!isset($member['membershipNumber']) || $this->normaliseScalar($member['membershipNumber']) === null) {
+            $member['membershipNumber'] = $member['membershipNo'] ?? null;
+        }
+
+        if (!isset($member['mobileNumber']) || $this->normaliseScalar($member['mobileNumber']) === null) {
+            $member['mobileNumber'] = $member['mobile'] ?? null;
+        }
+
+        if (!isset($member['landlineTelephone']) || $this->normaliseScalar($member['landlineTelephone']) === null) {
+            $member['landlineTelephone'] = $member['landline'] ?? null;
+        }
+
+        if (!isset($member['memberStatus']) || $this->normaliseScalar($member['memberStatus']) === null) {
+            $member['memberStatus'] = $member['membershipStatus'] ?? null;
+        }
+
+        if (!isset($member['groupCode']) || $this->normaliseScalar($member['groupCode']) === null) {
+            $member['groupCode'] = $this->currentGroupCode !== '' ? $this->currentGroupCode : null;
+        }
+
+        return $member;
     }
 
     private function identifyDuplicateFeedEmails($members) {
@@ -1084,14 +1081,14 @@ class LoadHelper {
 
     private function syncMember($member) {
 
-        $member = $this->normaliseMember($member);
+        $member = $this->normaliseSupporterForLegacySync($member);
         $salesforceId = $this->normaliseScalar($member['salesforceId'] ?? null);
         if (JDEBUG) {
-            $this->messages[] = 'Syncing member with Salesforce ID: ' . $salesforceId . ', member ' . $member['membershipNumber'];
+            $this->messages[] = 'Syncing member with Salesforce ID: ' . $salesforceId . ', member ' . ($member['membershipNumber'] ?? '');
         }
 
         if ($salesforceId === null) {
-            $this->logMessage('Skipped record without salesforceId', '3');
+            $this->logMessage('Skipped record without salesforceId/memberRef', '3');
             return false;
         }
 
@@ -1170,12 +1167,21 @@ class LoadHelper {
         }
     }
 
-    public function loadMembers($code = 'NS03') {
+    public function loadMembers(int $apiSiteId) {
+        $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_tools')->get('default_group', '')));
+
+        if (!preg_match('/^[A-Z0-9]{4}$/', $code)) {
+            $this->messages = array('com_ra_tools default_group must contain four letters or digits.' . $code);
+            return false;
+        }
+
+        $this->currentGroupCode = $code;
+
         $startedAt = Factory::getDate('now', Factory::getConfig()->get('offset'))->toSql(true);
 
         $this->logMessage('Processing ' . $code, 1);
         $this->messages = array();
-        $members = $this->getJson($code);
+        $members = $this->getJson($apiSiteId, $code);
         if ($members === false) {
             $this->messages[] = 'getJson was false for ' . $code;
             return false;
@@ -1186,7 +1192,7 @@ class LoadHelper {
             $message = 'Unable to find Primary list for ' . $code;
             $this->logMessage($message, 1);
             $this->messages[] = $message;
-            return;
+            return false;
         }
 
         //       die('Load members for ' . $code . ', got ' . count($members) . ' records');
@@ -1202,7 +1208,7 @@ class LoadHelper {
             $message .= ', Watermark ' . $startedAt;
             $this->messages[] = $message;
         }
-        return;
+        return true;
     }
 
     /**
@@ -1215,22 +1221,21 @@ class LoadHelper {
         $query->insert('#__ra_logfile')
                 ->set("record_type = " . $this->db->quote($record_type))
                 ->set("message = " . $this->db->quote($text))
-                ->set("sub_system = 'RA Mailman'")
+                ->set("sub_system = 'RA Members'")
                 ->set("ref = " . $this->db->quote('LoadMemb'))
         ;
 
         $result = $this->db->setQuery($query)->execute();
     }
 
-    public function processMembers($members) {
+   public function processMembers($members) {
         $count = 0;
         $this->count_new_profiles = 0;
         $this->count_new_users = 0;
         $this->count_legacy_profiles_reused = 0;
         $this->count_updated = 0;
         $this->count_not_updated = 0;
-        //var_dump($members);
-        //echo '<br>';
+
         if (is_object($members) && isset($members->members)) {
             $members = $members->members;
         } elseif (is_array($members) && isset($members['members'])) {
@@ -1246,17 +1251,18 @@ class LoadHelper {
             $members = iterator_to_array($members, false);
         }
 
-        $this->identifyDuplicateFeedEmails($members);
+        // Stage A: normalise new supporter payload before duplicate detection/persistence.
+        $normalisedMembers = array();
 
         foreach ($members as $member) {
-//            if ($count == 0){
-//                var_dump($member);
-//                echo '<br>';
-//            }
+            $normalisedMembers[] = $this->normaliseSupporterForLegacySync($member);
+        }
+
+        $this->identifyDuplicateFeedEmails($normalisedMembers);
+
+        foreach ($normalisedMembers as $member) {
             $count++;
-            if ($this->syncMember($member)) {
-                //               $count++;
-            }
+            $this->syncMember($member);
         }
 
         return $count;

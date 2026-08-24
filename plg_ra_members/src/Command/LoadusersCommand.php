@@ -17,11 +17,11 @@ namespace Ramblers\Plugin\Console\Ra_members\Command;
 \defined('JPATH_PLATFORM') or die;
 use Joomla\CMS\Factory;
 use Joomla\Console\Command\AbstractCommand;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Ramblers\Component\Ra_members\Site\Helper\LoadHelper;
-use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 
 class LoadusersCommand extends AbstractCommand {
 
@@ -40,9 +40,7 @@ class LoadusersCommand extends AbstractCommand {
      */
     private $app;
     private $cliInput;
-    private $db;
     private $loadUsers;
-    private $toolsHelper;
     
     /**
      * SymfonyStyle Object
@@ -58,8 +56,6 @@ class LoadusersCommand extends AbstractCommand {
      */
     public function __construct() {
         parent::__construct();
-        $this->db = Factory::getDbo();
-        $this->toolsHelper = new ToolsHelper;
         $this->loadUsers = new LoadHelper;
         $this->loadUsers->batch_mode = true; // set to true to avoid memory issues and to allow messages to be displayed at the end of the batch process    
         $this->app = Factory::getApplication();
@@ -73,12 +69,17 @@ class LoadusersCommand extends AbstractCommand {
      * @since   4.0.0
      */
     protected function configure(): void {
-        $help = "<info>%command.name%</info> Load users
-            \nUsage: <info>php %command.full_name% </info>
-            \nThis command loads users from active organisations after loading organisations and profiles.";
+        $help = "<info>%command.name%</info> Load RA Members supporter data
+            \nUsage: <info>php %command.full_name% &lt;api-site-id&gt;</info>
+            \nThe ID selects an enabled RA Members record in #__ra_api_sites.";
 
-        $this->setDescription('Load users from active organisations.');
+        $this->setDescription('Load profiles and users from the RA Members supporter feed.');
         $this->setHelp($help);
+        $this->addArgument(
+                'api-site-id',
+                InputArgument::REQUIRED,
+                'ID of the RA Members supporter feed in #__ra_api_sites'
+        );
 
     }
 
@@ -112,20 +113,27 @@ class LoadusersCommand extends AbstractCommand {
         $this->logit('Processing started', '1');
         $this->ioStyle->comment('Processing started');
 
-       
-        $sql = 'SELECT code FROM #__ra_organisations WHERE mailman_active IN (' . $this->db->quote('1') . ',' . $this->db->quote('Y') . ')';
-        $sql .= ' ORDER BY code';
+        $apiSiteId = (int) $input->getArgument('api-site-id');
 
-        $rows = $this->toolsHelper->getRows($sql);
-        foreach ($rows as $row) {
-            $this->logit('Processing ' . $row->code, '2');
-            $this->loadUsers->loadMembers($row->code);
-            foreach ($this->loadUsers->messages as $message) {
-                $this->ioStyle->comment($message);
-                $this->logit($message, '3');       
-            }
-        }        
-        $this->ioStyle->comment('Processing complete');
+        if ($apiSiteId < 1) {
+            $this->ioStyle->error('api-site-id must be a positive integer.');
+            return 2;
+        }
+
+        $result = $this->loadUsers->loadMembers($apiSiteId);
+
+        foreach ($this->loadUsers->messages as $message) {
+            $this->ioStyle->comment($message);
+            $this->logit($message, '3');
+        }
+
+        if (!$result) {
+            $this->ioStyle->error('Processing failed.');
+            $this->logit('Processing failed', '9');
+            return 1;
+        }
+
+        $this->ioStyle->success('Processing complete');
         $this->logit('Processing complete', '9');
         return 0;
     }
