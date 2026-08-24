@@ -339,20 +339,33 @@ class Com_Ra_membersInstallerScript {
         }
 
         if (ComponentHelper::isEnabled('com_ra_tools', true)) {
-            $tools_versions = $this->getVersions('com_ra_tools');
-
-            $tools_required = '3.5.5';
+            $tools_version = $this->getVersion('com_ra_tools');
+            $tools_required = '4.0.13';
             echo '<p>Version ' . $tools_required . ' of com_ra_tools required<br>';
             if (version_compare($tools_version, $tools_required, 'ge')) {
-                echo '<p>Version ' . $tools_versions . ' of com_ra_tools found</p>';
+                echo '<p>Version ' . $tools_version . ' of com_ra_tools found</p>';
             } else {
                 echo 'Version ' . $tools_version . ' of com_ra_tools found</p>';
                 echo '<p>WARNING: Please install version of com_ra_tools >=' . $tools_required . '</p>';
-//            return false;
+                return false;
             }
         } else {
             echo 'WARNING: This component will not function unless component RA Tools (com_ra_tools) is installed first';
-//          return false;
+            return false;
+        }
+
+        if (!ComponentHelper::isEnabled('com_ra_mailman', true)) {
+            echo 'WARNING: This component requires RA Mailman (com_ra_mailman).';
+            return false;
+        }
+
+        $mailman_required = '5.0.18';
+        $mailman_version = $this->getVersion('com_ra_mailman');
+
+        if (!version_compare($mailman_version, $mailman_required, 'ge')) {
+            echo '<p>WARNING: Please install version of com_ra_mailman >= '
+                    . $mailman_required . '</p>';
+            return false;
         }
 
 //        $v_403 = '4.0.3';
@@ -424,7 +437,16 @@ class Com_Ra_membersInstallerScript {
             echo 'Can only be installed if com_ra_mailman is already present';
             return false;
         }
-        $tools_required = '3.7.4';
+
+        $mailman_required = '5.0.18';
+        $mailman_version = $this->getVersion('com_ra_mailman');
+
+        if (!version_compare($mailman_version, $mailman_required, 'ge')) {
+            echo $this->red('<p>WARNING: Requires version of com_ra_mailman >= ' . $mailman_required);
+            return false;
+        }
+
+        $tools_required = '4.0.13';
         $tools_version = $this->getVersion('com_ra_tools');
         echo '<p>Version ' . $tools_required . ' of com_ra_tools required<br>';
         if (version_compare($tools_version, $tools_required, 'ge')) {
@@ -433,7 +455,7 @@ class Com_Ra_membersInstallerScript {
             echo 'Version ' . $tools_version . ' of com_ra_tools found</p>';
             echo $this->red('<p>WARNING: Requires version of com_ra_tools >=' . $tools_required);
 // If we return false, no message is displayed on the console, just "Custom installation failure"
-//           return false;
+            return false;
         }
 
         $this->version_required = '1.1.0';

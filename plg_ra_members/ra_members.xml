@@ -12,8 +12,8 @@
 <extension type="plugin" group="console" method="upgrade">
 	<name>plg_ra_members</name>
 	<description>Ramblers plugin to import membership details</description>
-	<version>1.0.9</version>
-	<creationDate>10 Apr 2026</creationDate>
+	<version>1.0.10</version>
+	<creationDate>24 Aug 2026</creationDate>
 	<author>Charlie Bigley</author>
     <authorEmail>webmaster@bigley.me.uk</authorEmail>
     <authorUrl>staffordshireramblers.org.uk</authorUrl>
