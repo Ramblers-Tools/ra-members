@@ -32,6 +32,8 @@ $values = [
     'Email Address' => ' JILL@EXAMPLE.TEST ',
     'Group Code' => ' ns01 ',
     'Expiry date' => '31/12/2027',
+    'Ramblers Join Date' => '21/01/2018 00:00:00',
+    'Area Joined Date' => '7/2/2019 00.00.00',
     'Volunteer' => 'Yes',
     'Post Direct Marketing' => 'No',
 ];
@@ -50,6 +52,8 @@ foreach ([
     'groupCode' => 'NS01',
     'home_group' => 'NS01',
     'membershipExpiry' => '2027-12-31',
+    'membershipJoinDate' => '2018-01-21',
+    'areaJoinedDate' => '2019-02-07',
     'volunteer' => 1,
     'postDirectMarketing' => 0,
     'address1' => null,

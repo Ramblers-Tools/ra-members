@@ -193,7 +193,17 @@ final class InsightCsvMapper
             return null;
         }
 
-        foreach (['!Y-m-d', '!d/m/Y', '!j/n/Y', '!d-m-Y', '!j-n-Y'] as $format) {
+        foreach ([
+            '!Y-m-d',
+            '!d/m/Y',
+            '!j/n/Y',
+            '!d-m-Y',
+            '!j-n-Y',
+            '!d/m/Y H:i:s',
+            '!j/n/Y H:i:s',
+            '!d/m/Y H.i.s',
+            '!j/n/Y H.i.s',
+        ] as $format) {
             $date = \DateTimeImmutable::createFromFormat($format, $value);
             $errors = \DateTimeImmutable::getLastErrors();
 
