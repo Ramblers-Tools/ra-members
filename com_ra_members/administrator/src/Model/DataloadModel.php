@@ -7,7 +7,6 @@
  * stored in the form->data. If processing is aborted, for example because the
  * wrong input parameters were given, the file details are taken from the form data.
  *
- * 18/10/23 CB take files from images/com_ra_mailman
  * 18/09/24 CB add function validate
  * 25/09/24 CB code copied from com_ra_tools / Model / UploadModel
  * 08/10/24 CB use view process for the actual processing
@@ -19,6 +18,7 @@
  * 09/06/25 CB correct error message for empty file
  * 18/10/25 CB allow text/comma-separated-values
  * 24/08/26 CB copied to com_ra_members
+ * 24/08/26 CB process Insight CSV directly without retaining the upload
  */
 
 namespace Ramblers\Component\Ra_members\Administrator\Model;
@@ -26,17 +26,14 @@ namespace Ramblers\Component\Ra_members\Administrator\Model;
 // No direct access.
 defined('_JEXEC') or die;
 
-use \Joomla\CMS\Table\Table;
 use \Joomla\CMS\Factory;
+use Joomla\CMS\Component\ComponentHelper;
 use \Joomla\CMS\Filesystem\File;
-use \Joomla\CMS\Helper\TagsHelper;
 use \Joomla\CMS\Language\Text;
-use \Joomla\CMS\Plugin\PluginHelper;
 use \Joomla\CMS\MVC\Model\AdminModel;
-use \Joomla\CMS\Object\CMSObject;
-use \Joomla\Utilities\ArrayHelper;
-use Ramblers\Component\Ra_mailman\Site\Helpers\UserHelper;
-use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
+use Ramblers\Component\Ra_members\Site\Helper\LoadHelper;
+use Ramblers\Component\Ra_members\Site\Service\InsightCsvMapper;
+use Ramblers\Component\Ra_members\Site\Service\MemberFeedMode;
 
 /**
  * Mail_lst model.
@@ -50,16 +47,14 @@ class DataloadModel extends AdminModel {
      *
      * @since  1.0.6
      */
-    protected $text_prefix = 'RA Mailman';
-    protected $csv_file;
-    protected $tmp_name;
+    protected $text_prefix = 'RA Members';
 
     /**
      * @var    string  Alias to manage history control
      *
      * @since  1.0.6
      */
-    public $typeAlias = 'com_ra_mailman.dataload';
+    public $typeAlias = 'com_ra_members.dataload';
     private $item = null;
 
     /**
@@ -74,7 +69,7 @@ class DataloadModel extends AdminModel {
      * @throws  Exception
      */
     protected function populateState() {
-        $app = Factory::getApplication('com_ra_mailman');
+        $app = Factory::getApplication('com_ra_members');
 
         // Load state from the request userState on edit or from the passed variable on default
         if (Factory::getApplication()->input->get('layout') == 'edit') {
@@ -83,19 +78,7 @@ class DataloadModel extends AdminModel {
             $id = Factory::getApplication()->input->get('id');
             Factory::getApplication()->setUserState('com_ra_members.edit.upload.id', $id);
         }
-        return true; ///////////////////////
-
-        $this->setState('upload.id', $id);
-
-        // Load the parameters.
-        $params = $app->getParams();
-        $params_array = $params->toArray();
-
-        if (isset($params_array['item_id'])) {
-            $this->setState('upload.id', $params_array['item_id']);
-        }
-
-        $this->setState('params', $params);
+        return true;
     }
 
     /**
@@ -125,7 +108,7 @@ class DataloadModel extends AdminModel {
      */
     public function getForm($data = array(), $loadData = true) {
         // Get the form.
-        $form = $this->loadForm('com_ra_mailman.upload', 'dataload', array(
+        $form = $this->loadForm('com_ra_members.upload', 'dataload', array(
             'control' => 'jform',
             'load_data' => $loadData
                 )
@@ -134,15 +117,18 @@ class DataloadModel extends AdminModel {
         if (empty($form)) {
             return false;
         }
-// if a file has been selected, show its name
-        $data = Factory::getApplication()->getUserState('com_ra_members.edit.upload.data', array());
-        $file = $data['file'];
-        if ($file != '') {
-            $form->removeField('csv_file');
-            $form->setFieldAttribute('csv_file', 'hidden', "true");
-            $form->setFieldAttribute('file', 'type', "textfield");
-        }
+
+        // The operating mode is configuration-owned, never selected or trusted
+        // from request data.
+        $form->setValue('feed_mode', null, $this->getImportMode());
+
         return $form;
+    }
+
+    public function getImportMode(): string {
+        $setting = ComponentHelper::getParams('com_ra_members')->get('enable_json_feed', 1);
+
+        return MemberFeedMode::fromJsonSetting($setting);
     }
 
     /**
@@ -174,141 +160,141 @@ class DataloadModel extends AdminModel {
      * @since   1.0.4
      */
     public function save($data) {
-        // The file details will have been set up in the function validate.
         $app = Factory::getApplication();
         $user = $this->getCurrentUser();
 
         // Check the user can create new items in this section
-        $authorised = $user->authorise('core.create', 'com_ra_mailman');
+        $authorised = $user->authorise('core.create', 'com_ra_members');
 
         if ($authorised !== true) {
             throw new \Exception(Text::_('JERROR_ALERTNOAUTHOR'), 403);
         }
 
 
-        $files = $app->input->files->get('jform', array(), 'raw');
+        $path = (string) ($data['tmp_name'] ?? '');
+        $preview = (string) ($data['validation_type'] ?? '2') === '1';
 
-        $file_array = $files['csv_file'];
-        if (is_null($file_array)) {
-            // We have already validated and uploaded the file
-            echo '<br> file_array is null<br>';
-        } else {
-            // This is the first time this function has been invoked
-            //           var_dump($file_array);
-            //           die;
-            $csv_file = $file_array['name'];
-            $tmp_name = $file_array['tmp_name'];
-            $delete = true;
+        if ($path === '' || !is_uploaded_file($path)) {
+            $app->enqueueMessage('The uploaded CSV file is no longer available.', 'error');
+            return false;
         }
-//        $app->enqueueMessage('DataloadModel/Save: file is  ' . $csv_file, 'info');
-        jimport('joomla.filesystem.file');
-        $filename = File::stripExt($csv_file);
-        $extension = File::getExt($csv_file);
-        $filename = $filename . '.' . $extension;
-        $fileTemp = $tmp_name;
-        $upload_file = JPATH_ROOT . '/images/com_ra_mailman/' . $filename;
-        if ($delete == true) {
-            if (File::exists($upload_file)) {
-                $message = 'File ' . $filename . ' already present in /images/com_ra_mailman/';
-                //            $app->enqueueMessage($message, 'info');
-                if (file_exists($upload_file) && !is_dir($upload_file)) {
-                    unlink($upload_file);
+
+        $handle = fopen($path, 'rb');
+
+        if ($handle === false) {
+            $app->enqueueMessage('Unable to open the uploaded CSV file.', 'error');
+            return false;
+        }
+
+        $mapper = new InsightCsvMapper();
+        $rows = [];
+        $mappingErrors = [];
+
+        try {
+            $headings = fgetcsv($handle);
+
+            if (!is_array($headings)) {
+                throw new \InvalidArgumentException('The CSV file has no heading row.');
+            }
+
+            $mapper->validateHeadings($headings);
+            $importedAt = Factory::getDate()->toSql();
+            $rowNumber = 1;
+
+            while (($row = fgetcsv($handle)) !== false) {
+                $rowNumber++;
+
+                if ($row === [null] || $row === []) {
+                    continue;
+                }
+
+                try {
+                    $mapped = $mapper->mapRow($headings, $row, $importedAt);
+                    $mapped['_row'] = $rowNumber;
+                    $rows[] = $mapped;
+                } catch (\Throwable $exception) {
+                    $mappingErrors[] = 'Row ' . $rowNumber . ': ' . $exception->getMessage();
+                }
+
+                if ($preview && count($rows) + count($mappingErrors) >= 4) {
+                    break;
                 }
             }
-            if (!File::upload($fileTemp, $upload_file)) {
-                $app->enqueueMessage('Model: Error moving ' . $fileTemp . ' to ' . $filename, 'warning');
-                return false;
-            } else {
-
-                $app->enqueueMessage($message . ' uploaded to ' . $data['file'], 'info');
-            }
+        } catch (\Throwable $exception) {
+            fclose($handle);
+            $app->enqueueMessage($exception->getMessage(), 'error');
+            return false;
         }
 
-//        $app->enqueueMessage('DataloadModel: returning TRUE from save', 'info');
-        return true;
+        fclose($handle);
+
+        foreach ($mappingErrors as $message) {
+            $app->enqueueMessage($message, 'warning');
+        }
+
+        if ($rows === []) {
+            $app->enqueueMessage('No valid Insight records were found.', 'error');
+            return false;
+        }
+
+        $loader = new LoadHelper();
+        $result = $loader->processInsightMembers($rows, $this->getImportMode(), $preview);
+
+        foreach ($loader->messages as $message) {
+            $app->enqueueMessage($message, $result ? 'info' : 'warning');
+        }
+
+        $action = $preview ? 'Previewed' : 'Processed';
+        $app->enqueueMessage($action . ' ' . count($rows) . ' valid Insight record(s).', $result ? 'success' : 'warning');
+
+        return $result && $mappingErrors === [];
     }
 
     public function validate($form, $data, $group = true) {
         $app = Factory::getApplication();
 
-        $MIMETypes = 'text/plain,text/csv,text/comma-separated-values';
+        // Ignore any posted mode. This prevents a request from bypassing the
+        // component's JSON/Insight source selection.
+        $data['feed_mode'] = $this->getImportMode();
 
-        $array = $app->input->get('jform', array(), 'ARRAY');
-
+        $validMimeTypes = ['text/plain', 'text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel'];
         $files = $app->input->files->get('jform', array(), 'raw');
-        $file_array = $files['csv_file'];
-        $csv_file = $file_array['name'];
+        $singleFile = $files['csv_file'] ?? null;
 
-        if ($array['file'] != '') {
-            // File has already been validated
-            $this->csv_file = $array['file'];
-            $this->tmp_file = $array['tmp_file'];
-            return $data;
-        } else {
-            // Replace any special characters in the filename
-            jimport('joomla.filesystem.file');
-            $filename = File::stripExt($csv_file);
-            if ($filename == '') {
-                $message = 'Please select a file';
-                $app->enqueueMessage($message, 'info');
-                return false;
-            }
-            $extension = File::getExt($csv_file);
-            $filename = preg_replace("/[^A-Za-z0-9]/i", "-", $filename);
-            $filename = $filename . '.' . $extension;
-            $fileTemp = $tmp_name;
-            if ($filename !== $csv_file) {
-                $message = 'File ' . $file_array['name'] . ' contains invalid characters, please rename to ' . $filename . ',';
-                $app->enqueueMessage($message, 'info');
-                return false;
-            }
+        if (!is_array($singleFile) || (int) ($singleFile['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            $app->enqueueMessage('Please select an Insight CSV file.', 'warning');
+            return false;
         }
-        $singleFile = $files['csv_file'];
-        if ($singleFile['size'] == 0) {
+
+        $fileError = (int) ($singleFile['error'] ?? UPLOAD_ERR_NO_FILE);
+
+        if ($fileError !== UPLOAD_ERR_OK) {
+            $app->enqueueMessage('File upload failed with error code ' . $fileError . '.', 'warning');
+            return false;
+        }
+
+        if ((int) ($singleFile['size'] ?? 0) === 0) {
             $app->enqueueMessage('Selected file is empty', 'error');
             return false;
         }
 
-//        jimport('joomla.filesystem.file');
-        // Check if the server found any error.
-        $fileError = $singleFile['error'];
-        $message = '';
+        $extension = strtolower(File::getExt((string) ($singleFile['name'] ?? '')));
 
-        if ($fileError > 0 && $fileError != 4) {
-            switch ($fileError) {
-                case 1:
-                    $message = Text::_('File size exceeds allowed by the server');
-                    break;
-                case 2:
-                    $message = Text::_('File size exceeds allowed by the html form');
-                    break;
-                case 3:
-                    $message = Text::_('Partial upload error');
-                    break;
-            }
-
-            if ($message != '') {
-                $app->enqueueMessage($message, 'warning');
-                return false;
-            }
-        } elseif ($fileError == 4) {
-            if (isset($array['csv_file'])) {
-                $this->csv_file = $array['csv_file'];
-            }
-        } else {
-            // Check for filetype
-            $validMIMEArray = explode(',', $MIMETypes);
-            $fileMime = $singleFile['type'];
-
-            if (!in_array($fileMime, $validMIMEArray)) {
-                $app->enqueueMessage('Filetype <b>' . $fileMime . '</b> is not allowed (must be ' . $MIMETypes . ')', 'warning');
-                return false;
-            }
+        if ($extension !== 'csv') {
+            $app->enqueueMessage('The selected file must have a .csv extension.', 'warning');
+            return false;
         }
+
+        $fileMime = strtolower((string) ($singleFile['type'] ?? ''));
+
+        if ($fileMime !== '' && !in_array($fileMime, $validMimeTypes, true)) {
+            $app->enqueueMessage('Filetype ' . htmlspecialchars($fileMime, ENT_QUOTES, 'UTF-8') . ' is not allowed.', 'warning');
+            return false;
+        }
+
         $data['file'] = $singleFile['name'];
         $data['tmp_name'] = $singleFile['tmp_name'];
-        $this->csv_file = $data['file'];
-        $this->tmp_name = $data['tmp_name'];
+        $data['feed_mode'] = $this->getImportMode();
         return $data;
     }
 

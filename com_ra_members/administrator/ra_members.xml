@@ -7,7 +7,7 @@
     <author>Charlie Bigley</author>
     <authorEmail>charlie@bigley.me.uk</authorEmail>
     <authorUrl>http://</authorUrl>
-    <version>1.2.2</version>
+    <version>1.2.3</version>
     <description>RA Members</description>
     <namespace path="src">Ramblers\Component\Ra_members</namespace>  
     <scriptfile>script.php</scriptfile>
@@ -55,4 +55,3 @@
         </fields>
     </config> 
 </extension>
-

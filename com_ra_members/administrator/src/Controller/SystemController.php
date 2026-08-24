@@ -243,37 +243,15 @@ class SystemController extends FormController {
         $sql .= 'FROM `#__users` ';
         $sql .= ' WHERE block=1';
         $sql .= ' ORDER BY id';
-        $target = 'administrator/index.php?option=com_ra_mailman&task=system.purgeUser&id=';
+        $target = 'administrator/index.php?option=com_ra_members&task=system.purgeUser&id=';
         $rows = $this->toolsHelper->getRows($sql);
         foreach ($rows as $row) {
             $this->purgeUserRecord($row->id);
         }
         $userHelper = new UserHelper;
         $userHelper->purgeProfiles();
-        $back = 'administrator/index.php?option=com_ra_mailman&view=reports';
+        $back = 'administrator/index.php?option=com_ra_members&view=reports';
         echo $this->toolsHelper->backButton($back);
-    }
-
-    public function sendEmail() {
-        // Invoked from report recentMailshots to force resend on-line
-        // this is the same processing as is carried out by the cron job
-        $mail_list_id = $this->app->input->getInt('id', '0');
-
-        if ($mail_list_id == 0) {
-            Factory::getApplication()->enqueueMessage('mailshot id is zero', 'notice');
-        } else {
-            $this->toolsHelper->createLog('RA Mailman', 1, $mail_list_id, 'Sending of mailshot initiated');
-            $mailHelper = new MailHelper;
-            $last_mailshot = $mailHelper->lastMailshot($mail_list_id); //
-//          Factory::getApplication()->enqueueMessage('mailshot id is ' . $last_mailshot->id, 'notice');
-            $mailHelper->sendEmails($last_mailshot->id);
-            foreach ($mailHelper->messages as $message) {
-                Factory::getApplication()->enqueueMessage($message, 'info');
-                $this->toolsHelper->createLog('RA Mailman', 1, $mail_list_id, $message);
-            }
-        }
-        $back = 'index.php?option=com_ra_mailman&task=reports.recentMailshots';
-        $this->setRedirect($back);
     }
 
     function test() {

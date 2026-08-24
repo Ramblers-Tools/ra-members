@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <config>
     <fieldset label="COM_RA_MEMBERS" name="ra_members">
+        <field
+            name="enable_json_feed"
+            type="radio"
+            layout="joomla.form.field.radio.switcher"
+            label="COM_RA_MEMBERS_CONFIG_ENABLE_JSON_FEED_LABEL"
+            description="COM_RA_MEMBERS_CONFIG_ENABLE_JSON_FEED_DESC"
+            default="1"
+            filter="integer"
+            >
+            <option value="0">JNO</option>
+            <option value="1">JYES</option>
+        </field>
      <field name="show_area_reports"
         type="radio"
         label="Area reports"

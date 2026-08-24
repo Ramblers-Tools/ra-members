@@ -31,6 +31,13 @@ class Com_Ra_membersInstallerScript {
     private $reconfigure_message;
     private $required_version;
 
+    private function fail(string $message): bool {
+        Factory::getApplication()->enqueueMessage($message, 'error');
+        Log::add($message, Log::ERROR, 'jerror');
+
+        return false;
+    }
+
     function buildButton($url, $text, $newWindow = 0, $colour = '') {
         if ($colour == '') {
             $colour = 'sunrise';
@@ -60,8 +67,7 @@ class Com_Ra_membersInstallerScript {
             return true;
         }
         if (($mode == 'U') AND ($count == 0)) {
-            echo 'Field ' . $column . ' not found in ' . $table_name . '<br>';
-            return false;
+            return $this->fail('Installer could not update missing field ' . $table_name . '.' . $column . '.');
         }
 
         $sql = 'ALTER TABLE ' . $table_name . ' ';
@@ -110,12 +116,10 @@ class Com_Ra_membersInstallerScript {
                 echo 'Greater than 5.0.2, OK<br>';
                 return true;
             } else {
-                echo 'Minimum required version of tools is 5.0.2<br>';
-                return false;
+                return $this->fail('This operation requires com_ra_tools later than version 5.0.2.');
             }
         } else {
-            echo 'This component cannot be installed unless component RA Tools (com_ra_tools) is installed first';
-            return false;
+            return $this->fail('This operation requires the enabled component com_ra_tools.');
         }
         return true;
     }
@@ -143,8 +147,7 @@ class Com_Ra_membersInstallerScript {
         if ($response) {
             echo 'Table created OK<br>';
         } else {
-            echo 'Failure<br>';
-            return false;
+            return $this->fail('Installer failed to create database table ' . $table_name . '.');
         }
         if ($details2 != '') {
             $sql = 'ALTER TABLE ' . $table_name . ' ' . $details2;
@@ -152,8 +155,7 @@ class Com_Ra_membersInstallerScript {
             if ($response) {
                 echo 'Table altered OK<br>';
             } else {
-                echo 'Failure<br>';
-                return false;
+                return $this->fail('Installer failed to alter database table ' . $table_name . '.');
             }
         }
     }
@@ -248,16 +250,15 @@ class Com_Ra_membersInstallerScript {
         $sql = 'SELECT manifest_cache ';
         $sql .= 'FROM  #__extensions  ';
         $sql .= 'WHERE element="' . $component . '"';
-        echo $sql . '<br>';
-        return '1.0.2';
         $json = $this->getValue($sql);
-        if (is_null($json)) {
-            echo 'Could not find previous version<br>>';
-            return '1.0.2';
-        } else {
-            $data = $json;
-            return $data->version;
+
+        if (empty($json)) {
+            return null;
         }
+
+        $data = json_decode($json);
+
+        return (is_object($data) && isset($data->version)) ? (string) $data->version : null;
     }
 
     /**
@@ -282,8 +283,7 @@ class Com_Ra_membersInstallerScript {
         $db->execute();
         $item = $db->loadObject();
         if ($item == false) {
-            echo 'Can\'t find versions for ' . $component . '<br>';
-            echo $db->replacePrefix($query) . '<br>';
+            $this->fail('Installer could not find version information for ' . $component . '.');
             return false;
         } else {
             $values = json_decode($item->manifest_cache);
@@ -322,20 +322,10 @@ class Com_Ra_membersInstallerScript {
     public function install($parent): bool {
         echo '<p>Installing RA members (com_ra_members) ' . '</p>';
         if (!empty($this->minimumPHPVersion) && version_compare(PHP_VERSION, $this->minimumPHPVersion, '<')) {
-            Log::add(
-                    Text::sprintf('JLIB_INSTALLER_MINIMUM_PHP', $this->minimumPHPVersion),
-                    Log::WARNING,
-                    'jerror'
-            );
-            return false;
+            return $this->fail(Text::sprintf('JLIB_INSTALLER_MINIMUM_PHP', $this->minimumPHPVersion));
         }
         if (!empty($this->minimumJoomlaVersion) && version_compare(JVERSION, $this->minimumJoomlaVersion, '<')) {
-            Log::add(
-                    Text::sprintf('JLIB_INSTALLER_MINIMUM_JOOMLA', $this->minimumJoomlaVersion),
-                    Log::WARNING,
-                    'jerror'
-            );
-            return false;
+            return $this->fail(Text::sprintf('JLIB_INSTALLER_MINIMUM_JOOMLA', $this->minimumJoomlaVersion));
         }
 
         if (ComponentHelper::isEnabled('com_ra_tools', true)) {
@@ -345,35 +335,25 @@ class Com_Ra_membersInstallerScript {
             if (version_compare($tools_version, $tools_required, 'ge')) {
                 echo '<p>Version ' . $tools_version . ' of com_ra_tools found</p>';
             } else {
-                echo 'Version ' . $tools_version . ' of com_ra_tools found</p>';
-                echo '<p>WARNING: Please install version of com_ra_tools >=' . $tools_required . '</p>';
-                return false;
+                return $this->fail('RA Members requires com_ra_tools version ' . $tools_required
+                                . ' or later; found ' . ($tools_version ?: 'no readable version') . '.');
             }
         } else {
-            echo 'WARNING: This component will not function unless component RA Tools (com_ra_tools) is installed first';
-            return false;
+            return $this->fail('RA Members requires the enabled component com_ra_tools.');
         }
 
         if (!ComponentHelper::isEnabled('com_ra_mailman', true)) {
-            echo 'WARNING: This component requires RA Mailman (com_ra_mailman).';
-            return false;
+            return $this->fail('RA Members requires the enabled component com_ra_mailman.');
         }
 
         $mailman_required = '5.0.18';
         $mailman_version = $this->getVersion('com_ra_mailman');
 
         if (!version_compare($mailman_version, $mailman_required, 'ge')) {
-            echo '<p>WARNING: Please install version of com_ra_mailman >= '
-                    . $mailman_required . '</p>';
-            return false;
+            return $this->fail('RA Members requires com_ra_mailman version ' . $mailman_required
+                            . ' or later; found ' . ($mailman_version ?: 'no readable version') . '.');
         }
 
-//        $v_403 = '4.0.3';
-//        if (version_compare($versions->component, $v_403, '>')) {
-//            echo 'New version is greater than ' . $v_403 . '<br>';
-//        }
-//        $sql = "INSERT INTO `dev_ra_mail_access` (`id`, `name`)";
-//        $sql .= "VALUES ('1', 'Subscriber'), ('2', 'Author') ,('3', 'Owner') ";
         return true;
     }
 
@@ -430,20 +410,18 @@ class Com_Ra_membersInstallerScript {
             echo ', DB version=' . $this->getDbVersion() . '<br>';
         }
         if (!ComponentHelper::isEnabled('com_ra_tools', true)) {
-            echo 'Can only be installed if com_ra_tools is already present';
-            return false;
+            return $this->fail('RA Members requires the enabled component com_ra_tools.');
         }
         if (!ComponentHelper::isEnabled('com_ra_mailman', true)) {
-            echo 'Can only be installed if com_ra_mailman is already present';
-            return false;
+            return $this->fail('RA Members requires the enabled component com_ra_mailman.');
         }
 
         $mailman_required = '5.0.18';
         $mailman_version = $this->getVersion('com_ra_mailman');
 
         if (!version_compare($mailman_version, $mailman_required, 'ge')) {
-            echo $this->red('<p>WARNING: Requires version of com_ra_mailman >= ' . $mailman_required);
-            return false;
+            return $this->fail('RA Members requires com_ra_mailman version ' . $mailman_required
+                            . ' or later; found ' . ($mailman_version ?: 'no readable version') . '.');
         }
 
         $tools_required = '4.0.13';
@@ -452,10 +430,8 @@ class Com_Ra_membersInstallerScript {
         if (version_compare($tools_version, $tools_required, 'ge')) {
             echo 'Version ' . $tools_version . ' of com_ra_tools found</p>';
         } else {
-            echo 'Version ' . $tools_version . ' of com_ra_tools found</p>';
-            echo $this->red('<p>WARNING: Requires version of com_ra_tools >=' . $tools_required);
-// If we return false, no message is displayed on the console, just "Custom installation failure"
-            return false;
+            return $this->fail('RA Members requires com_ra_tools version ' . $tools_required
+                            . ' or later; found ' . ($tools_version ?: 'no readable version') . '.');
         }
 
         $this->version_required = '1.1.0';
@@ -482,7 +458,7 @@ class Com_Ra_membersInstallerScript {
             $this->checkColumn('ra_organisations', 'uses_ra_mailman', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER uses_ra_tools; ');
             $this->checkColumn('ra_organisations', 'uses_ngx', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER uses_ra_mailman; ');
             $this->checkColumn('ra_organisations', 'email_header', 'U', 'VARCHAR(255); ');
-        }        
+        }
         return true;
     }
 

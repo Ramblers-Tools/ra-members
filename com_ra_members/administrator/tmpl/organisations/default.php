@@ -11,6 +11,7 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\HTML\HTMLHelper;
+use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
@@ -25,6 +26,7 @@ $listOrder = $this->escape($this->state->get('list.ordering'));
 $listDirn = $this->escape($this->state->get('list.direction'));
 $groupsOnly = $this->state->get('filter.record_type') === 'G';
 $apiSiteId = Factory::getApplication()->input->getInt('api_site_id');
+$jsonFeedEnabled = (bool) ComponentHelper::getParams('com_ra_members')->get('enable_json_feed', 1);
 
 $objHelper = new ToolsHelper;
 $self = 'index.php?option=com_ra_members&view=organisations';
@@ -133,7 +135,7 @@ if (empty($this->items)) {
             echo $memberCount . '</a>' . PHP_EOL;
         }
 
-        if ($item->mailman_active == '1' && $apiSiteId > 0) {
+        if ($jsonFeedEnabled && $item->mailman_active == '1' && $apiSiteId > 0) {
             $load = 'index.php?option=com_ra_members&task=organisations.loadMembers&api_site_id=' . $apiSiteId;
             echo ' <a href="' . Route::_($load) . '" class="ms-2">';
             echo '<span class="fa fa-sync" aria-hidden="true"></span><span class="sr-only">Load</span>';

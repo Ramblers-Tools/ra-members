@@ -28,6 +28,7 @@ use Ramblers\Component\Ra_tools\Site\Helpers\UserHelper;
 use Ramblers\Component\Ra_tools\Site\Service\SharedUserNameResolver;
 use Ramblers\Component\Ra_members\Site\Service\SupporterApiConfig;
 use Ramblers\Component\Ra_members\Site\Service\SupporterMapper;
+use Ramblers\Component\Ra_members\Site\Service\MemberFeedMode;
 use Ramblers\Component\Ra_tools\Administrator\Table\ProfileTable;
 
 class LoadHelper {
@@ -606,6 +607,25 @@ public function getJson(int $apiSiteId, string $code)
         return $this->db->loadObject();
     }
 
+    private function getProfilesByMembershipNo($membershipNo) {
+        $membershipNo = $this->normaliseScalar($membershipNo);
+
+        if ($membershipNo === null) {
+            return array();
+        }
+
+        $query = $this->db->getQuery(true)
+                ->select('*')
+                ->from($this->db->quoteName('#__ra_profiles'))
+                ->where($this->db->quoteName('membershipNo') . ' = ' . $this->db->quote($membershipNo))
+                ->order($this->db->quoteName('member_id') . ' ASC');
+
+        $this->db->setQuery($query);
+        $rows = $this->db->loadObjectList();
+
+        return is_array($rows) ? $rows : array();
+    }
+
     private function getProfileColumns() {
         if ($this->profileColumns === null) {
             $this->profileColumns = $this->db->getTableColumns('#__ra_profiles', false);
@@ -775,6 +795,25 @@ public function getJson(int $apiSiteId, string $code)
         $columns = $this->getProfileColumns();
         $data = array_intersect_key($member, $columns);
 
+        // home_group currently duplicates the source groupCode. Keep legacy
+        // profiles usable until that redundancy is removed by ensuring a blank
+        // value is populated by either import path.
+        $existingHomeGroup = is_object($existingProfile)
+                ? $this->normaliseScalar($existingProfile->home_group ?? null)
+                : null;
+
+        if (array_key_exists('home_group', $columns) && $existingHomeGroup === null) {
+            $incomingHomeGroup = $this->normaliseScalar($member['home_group'] ?? null);
+
+            if ($incomingHomeGroup === null) {
+                $incomingHomeGroup = $this->normaliseScalar($member['groupCode'] ?? null);
+            }
+
+            if ($incomingHomeGroup !== null) {
+                $data['home_group'] = strtoupper($incomingHomeGroup);
+            }
+        }
+
         if (array_key_exists('preferred_name', $columns)
                 && (!is_object($existingProfile) || empty($existingProfile->member_id))) {
             $data['preferred_name'] = $this->buildPreferredName($member);
@@ -937,11 +976,165 @@ public function getJson(int $apiSiteId, string $code)
         }
     }
 
+    /**
+     * Preview or persist rows already mapped from an Insight CSV file.
+     */
+    public function processInsightMembers(array $members, string $mode, bool $preview = false): bool {
+        if (!in_array($mode, [MemberFeedMode::JSON_ENRICHMENT, MemberFeedMode::INSIGHT_PRIMARY], true)) {
+            $this->messages[] = 'Unknown Insight import mode.';
+            return false;
+        }
+
+        $this->count_new_profiles = 0;
+        $this->count_new_users = 0;
+        $this->count_updated = 0;
+        $this->count_not_updated = 0;
+        $this->identifyDuplicateFeedEmails($members);
+
+        $membershipCounts = array_count_values(array_map(
+            static fn ($member) => (string) ($member['membershipNo'] ?? ''),
+            $members
+        ));
+
+        if ($mode === MemberFeedMode::INSIGHT_PRIMARY && !$preview) {
+            $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_mailman')->get('default_group', '')));
+
+            if (!preg_match('/^[A-Z0-9]{4}$/', $code)) {
+                $this->messages[] = 'com_ra_mailman default_group must contain four letters or digits.';
+                return false;
+            }
+
+            $this->currentGroupCode = $code;
+            $this->primary_list = $this->getDefaultList($code);
+
+            if (!$this->primary_list) {
+                $this->messages[] = 'Unable to find the default mailing list for ' . $code;
+                return false;
+            }
+        }
+
+        $ok = true;
+
+        foreach ($members as $member) {
+            $membershipNo = (string) ($member['membershipNo'] ?? '');
+            $rowNumber = (int) ($member['_row'] ?? 0);
+            $rowLabel = $rowNumber > 0 ? 'Row ' . $rowNumber . ': ' : '';
+
+            if ($membershipNo === '' || ($membershipCounts[$membershipNo] ?? 0) > 1) {
+                $this->messages[] = $rowLabel . 'duplicate or missing membership number; record ignored.';
+                $ok = false;
+                continue;
+            }
+
+            $profiles = $this->getProfilesByMembershipNo($membershipNo);
+
+            if (count($profiles) > 1) {
+                $this->messages[] = $rowLabel . 'membership number ' . $membershipNo . ' matches multiple profiles; record ignored.';
+                $ok = false;
+                continue;
+            }
+
+            $profileRow = $profiles[0] ?? null;
+
+            if ($mode === MemberFeedMode::JSON_ENRICHMENT && $profileRow === null) {
+                $this->messages[] = $rowLabel . 'membership number ' . $membershipNo . ' is not present from the JSON feed; record ignored.';
+                $ok = false;
+                continue;
+            }
+
+            if ($preview) {
+                $action = $profileRow === null ? 'would create a profile' : 'would update profile ' . (int) $profileRow->member_id;
+                $this->messages[] = $rowLabel . 'membership number ' . $membershipNo . ' ' . $action . '.';
+                continue;
+            }
+
+            if (!$this->syncInsightMember($member, $profileRow, $mode)) {
+                $ok = false;
+            }
+        }
+
+        return $ok;
+    }
+
+    private function syncInsightMember(array $member, $profileRow, string $mode): bool {
+        $membershipNo = (string) $member['membershipNo'];
+        unset($member['_row']);
+        $this->db->transactionStart();
+
+        try {
+            $userId = is_object($profileRow) && !empty($profileRow->id) ? (int) $profileRow->id : null;
+            $linkRequiresSubscription = false;
+
+            if ($mode === MemberFeedMode::INSIGHT_PRIMARY) {
+                list($userId, $createdUser, $linkRequiresSubscription) = $this->resolveUserId($member, $profileRow);
+
+                if ($userId === false) {
+                    $this->db->transactionRollback();
+                    return false;
+                }
+            }
+
+            $data = $this->mapMemberToProfileData($member, $profileRow, $userId);
+            $changes = array();
+            $isNewProfile = !is_object($profileRow) || empty($profileRow->member_id);
+
+            if (!$isNewProfile) {
+                foreach ($data as $columnName => $newValue) {
+                    $oldValue = property_exists($profileRow, $columnName) ? $profileRow->$columnName : null;
+
+                    if ($this->valuesDiffer($oldValue, $newValue)) {
+                        $changes[$columnName] = ['old' => $oldValue, 'new' => $newValue];
+                    }
+                }
+            }
+
+            $profile = $this->saveProfileRecord($profileRow, $data);
+
+            if ($profile === null) {
+                $this->db->transactionRollback();
+                return false;
+            }
+
+            if ($isNewProfile) {
+                $this->count_new_profiles++;
+                $this->createProfileAudit($this->getProfileReference($profile), 'C', '', null, '');
+                $this->messages[] = 'Created profile for membership number ' . $membershipNo . '.';
+            } elseif ($changes === []) {
+                $this->count_not_updated++;
+            } else {
+                $this->count_updated++;
+
+                foreach ($changes as $fieldName => $change) {
+                    $this->createProfileAudit($this->getProfileReference($profile), 'U', $fieldName, $change['old'], $change['new']);
+                }
+            }
+
+            if ($linkRequiresSubscription && (int) $userId > 0) {
+                $this->ensurePrimarySubscription((int) $userId);
+            }
+
+            $this->db->transactionCommit();
+            return true;
+        } catch (\Throwable $exception) {
+            $this->db->transactionRollback();
+            $this->messages[] = 'Error syncing membership number ' . $membershipNo . ': ' . $exception->getMessage();
+            $this->logMessage('Insight sync error for membership number ' . $membershipNo . ': ' . $exception->getMessage(), '3');
+            return false;
+        }
+    }
+
     public function loadMembers(int $apiSiteId) {
-        $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_mailman')->get('default_group', '')));
+        $jsonSetting = ComponentHelper::getParams('com_ra_members')->get('enable_json_feed', 1);
+
+        if (!MemberFeedMode::isJsonEnabled($jsonSetting)) {
+            $this->messages = array('The JSON supporter feed is disabled in RA Members configuration.');
+            return false;
+        }
+
+        $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_tools')->get('default_group', '')));
 
         if (!preg_match('/^[A-Z0-9]{4}$/', $code)) {
-            $this->messages = array('com_ra_mailman default_group must contain four letters or digits.');
+            $this->messages = array('com_ra_tools default_group must contain four letters or digits.');
             return false;
         }
 

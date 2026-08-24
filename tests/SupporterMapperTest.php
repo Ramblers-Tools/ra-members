@@ -36,7 +36,9 @@ if ($profile['memberRef'] !== $supporter['memberRef']
         || $profile['contactId'] !== $supporter['contactId']
         || $profile['email'] !== strtolower($supporter['email'])
         || $profile['membershipNo'] !== $supporter['membershipNo']
-        || $profile['friendlyName'] !== $supporter['friendlyName']) {
+        || $profile['friendlyName'] !== $supporter['friendlyName']
+        || $profile['groupCode'] !== 'NS03'
+        || $profile['home_group'] !== 'NS03') {
     throw new RuntimeException('Core supporter fields were mapped incorrectly.');
 }
 

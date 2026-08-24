@@ -7,21 +7,27 @@
  * 27/07/25 CB abbreviated name
  * 24/08/26 CB copied to com_ra_members
  */
-use Joomla\CMS\Component\ComponentHelper;
 use \Joomla\CMS\HTML\HTMLHelper;
 
 // No direct access
 defined('_JEXEC') or die;
+
+$jsonFeedEnabled = $this->importMode === 'json_enrichment';
 ?>
-Processing of the data file is in two stages:
+<div class="alert alert-info">
+    <strong><?php echo $jsonFeedEnabled ? 'JSON feed enabled' : 'JSON feed disabled'; ?>.</strong>
+    <?php if ($jsonFeedEnabled) : ?>
+        This Insight CSV will enrich profiles whose membership numbers are already known from the JSON feed.
+    <?php else : ?>
+        This Insight CSV will be treated as the primary membership source.
+    <?php endif; ?>
+</div>
+Choose how the Insight file is to be handled:
 <ul>
-    <li>Firstly it is validated to ensure it is in the correct format,
-        and that all fields are present. A report is given, showing if Users are already present.
-        You will be given to option to continue or cancel.</li>
-    <li>If you continue, the database will be updated, creating any
-        new Users that are required and subscribing them to the specified list.</li>
+    <li><strong>Check format</strong> validates and previews the first four records without writing to the database.</li>
+    <li><strong>Process</strong> validates the complete file and applies valid records. Invalid records are reported and ignored.</li>
 </ul>
-<form action="<?php echo JRoute::_('index.php?option=com_ra_mailman&layout=edit'); ?>" method="post" enctype="multipart/form-data" name="adminForm" id="adminForm" class="form-validate">
+<form action="<?php echo JRoute::_('index.php?option=com_ra_members&layout=edit'); ?>" method="post" enctype="multipart/form-data" name="adminForm" id="adminForm" class="form-validate">
     <div class="row-fluid">
         <div id="j-main-container" class="span10">
             <fieldset class="adminform">
@@ -32,35 +38,11 @@ Processing of the data file is in two stages:
                 echo '</div>' . PHP_EOL;
                 echo '<div class="controls">';
                 echo $this->form->getInput('csv_file');
-                echo $this->form->renderField('file') . PHP_EOL;
-                echo '</div></div>' . PHP_EOL;
-                echo $this->form->renderField('tmp_name') . PHP_EOL;
-
-                echo '<div class="control-group"><div class="control-label">';
-                echo $this->form->getLabel('data_type');
-                echo '</div>' . PHP_EOL;
-
-                echo '<div class="controls">';
-                echo $this->form->getInput('data_type');
                 echo '</div></div>' . PHP_EOL;
 
                 echo $this->form->renderField('validation_type') . PHP_EOL;
-                echo $this->form->renderField('mail_list') . PHP_EOL;
-                echo $this->form->renderField('processing') . PHP_EOL;
+                echo $this->form->renderField('feed_mode') . PHP_EOL;
                 ?>
-
-                <?php if (!empty($this->item->attachment)) : ?>
-                    <?php $attachmentFiles = array(); ?>
-                    <?php foreach ((array) $this->item->attachment as $fileSingle) : ?>
-                        <?php if (!is_array($fileSingle)) : ?>
-                            <a href="<?php echo Route::_(Uri::root() . 'images/com_ra_mailman' . DIRECTORY_SEPARATOR . $fileSingle, false); ?>"><?php echo $fileSingle; ?></a> |
-                            <?php $attachmentFiles[] = $fileSingle; ?>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                    <input type="hidden" name="jform[attachment_hidden]" id="jform_attachment_hidden" value="<?php echo implode(',', $attachmentFiles); ?>" />
-                <?php endif; ?>
-
-
             </fieldset>
         </div>
         <input type="hidden" name="task" value="" />
@@ -69,11 +51,3 @@ Processing of the data file is in two stages:
     <div id="validation-form-failed" data-backend-detail="dataload" data-message="<?php echo $this->escape(JText::_('JGLOBAL_VALIDATION_FORM_FAILED')); ?>">
     </div>
 </form>
-<?php
-$abbreviate_name = ComponentHelper::getParams('com_ra_mailman')->get('abbreviate_name', 'Y');
-if ($abbreviate_name == 'Y') {
-    echo 'Profile name will be abbreviated<br>';
-} else {
-    echo 'Profile name will not be abbreviated, but will be the same as the real name<br>';
-}
-?>

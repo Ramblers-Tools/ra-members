@@ -39,6 +39,7 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
     protected $item;
     protected $form;
     protected $user;
+    protected $importMode;
 
     /**
      * Display the view
@@ -52,6 +53,7 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
     public function display($tpl = null) {
         $this->state = $this->get('State');
         $this->form = $this->get('Form');
+        $this->importMode = $this->get('ImportMode');
         $this->user = $this->getCurrentUser();
 
         // Check for errors.
@@ -74,11 +76,9 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
         // Suppress menu side panel
         Factory::getApplication()->input->set('hidemainmenu', true);
 
-        $isNew = ($this->item->id == 0);
+        $canDo = ContentHelper::getActions('com_ra_members');
 
-        $canDo = ContentHelper::getActions('com_ra_mailman');
-
-        ToolbarHelper::title(Text::_('Load User data for a Mailing list'), "generic");
+        ToolbarHelper::title(Text::_('Import Insight member data'), "generic");
 
         $toolbar = Toolbar::getInstance('toolbar');
 
@@ -87,7 +87,7 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
 
             $toolbar->standardButton('process')
                     ->icon('fa fa-info-circle')
-                    ->text('Process file')
+                    ->text('Run import')
                     ->task('dataload.save')
                     ->onclick('return true')
                     ->listCheck(false);

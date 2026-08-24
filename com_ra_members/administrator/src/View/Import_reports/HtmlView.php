@@ -72,7 +72,7 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
         // Suppress menu side panel
         Factory::getApplication()->input->set('hidemainmenu', true);
         $state = $this->get('State');
-        $canDo = ContentHelper::getActions('com_ra_mailman');
+        $canDo = ContentHelper::getActions('com_ra_members');
 
         ToolbarHelper::title(Text::_('Import reports'), "generic");
 
@@ -104,7 +104,7 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
         ToolbarHelper::cancel('import_reports.cancel', 'Return to Dashboard');
 
         // Set sidebar action
-        Sidebar::setAction('index.php?option=com_ra_mailman&view=import_reports');
+        Sidebar::setAction('index.php?option=com_ra_members&view=import_reports');
     }
 
     /**
