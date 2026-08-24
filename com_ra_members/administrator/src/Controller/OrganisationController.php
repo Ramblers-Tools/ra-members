@@ -172,19 +172,19 @@ class OrganisationController extends FormController {
         $sql .= 'ORDER BY lastName, firstName ';
 
         $table = new ToolsTable;
-        $table->add_header('Mem No,Preferred name,Home group,Join date,Expiry date,Member type,Member term,Status,Volunteer');
+        $table->add_header('Mem No,Preferred name,Home group,Join date,Expiry date,Member type,Member term,Status,Team status');
         $rows = $this->toolsHelper->getRows($sql);
 
         foreach ($rows as $row) {
-            $table->add_item($row->membershipNumber);
+            $table->add_item($row->membershipNo);
             $table->add_item($row->preferred_name);
             $table->add_item($row->home_group);
-            $table->add_item(HTMLHelper::_('date', $row->ramblersJoinedDate, 'd M y'));
-            $table->add_item(HTMLHelper::_('date', $row->membershipExpiryDate, 'd M y'));
+            $table->add_item(HTMLHelper::_('date', $row->membershipJoinDate, 'd M y'));
+            $table->add_item(HTMLHelper::_('date', $row->membershipExpiry, 'd M y'));
             $table->add_item($row->memberType);
             $table->add_item($row->memberTerm);
-            $table->add_item($row->memberStatus);
-            $table->add_item($row->volunteer);
+            $table->add_item($row->membershipStatus);
+            $table->add_item($row->teamStatus);
             $table->generate_line();
         }
 

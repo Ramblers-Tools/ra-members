@@ -1,9 +1,8 @@
 <?php
 
-/**
- * @package     com_ra_members
- * @license     GNU General Public License version 2 or later; see LICENSE.txt
- */
+/*
+ * 22/08/26 Created by chatGPT
+*/
 
 namespace Ramblers\Component\Ra_members\Site\Service;
 

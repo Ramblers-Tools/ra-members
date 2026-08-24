@@ -30,12 +30,12 @@
             <option value="">JGLOBAL_SORT_BY</option>
             <option value="a.id ASC">COM_RA_MEMBERS_ID_ASC</option>
             <option value="a.id DESC">COM_RA_MEMBERS_ID_DESC</option>
-            <option value="a.preferred_name ASC">COM_RA_MEMBERS_PREFERRED_NAME_ASC</option>
-            <option value="a.preferred_name DESC">COM_RA_MEMBERS_PREFERRED_NAME_DESC</option>
+            <option value="p.preferred_name ASC">COM_RA_MEMBERS_PREFERRED_NAME_ASC</option>
+            <option value="p.preferred_name DESC">COM_RA_MEMBERS_PREFERRED_NAME_DESC</option>
             <option value="a.role ASC">COM_RA_MEMBERS_ROLE_ASC</option>
             <option value="a.role DESC">COM_RA_MEMBERS_ROLE_DESC</option>
-            <option value="a.membershipNumber ASC">COM_RA_MEMBERS_MEMBERSHIP_NUMBER_ASC</option>
-            <option value="a.membershipNumber DESC">COM_RA_MEMBERS_MEMBERSHIP_NUMBER_DESC</option>
+            <option value="p.membershipNo ASC">COM_RA_MEMBERS_MEMBERSHIP_NUMBER_ASC</option>
+            <option value="p.membershipNo DESC">COM_RA_MEMBERS_MEMBERSHIP_NUMBER_DESC</option>
             <option value="p.home_group ASC">COM_RA_MEMBERS_HOME_GROUP_ASC</option>
             <option value="p.home_group DESC">COM_RA_MEMBERS_HOME_GROUP_DESC</option>
 

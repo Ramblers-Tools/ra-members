@@ -52,23 +52,22 @@ class MembersModel extends ListModel {
                 'created', 'a.created',
                 'modified', 'a.modified',
                 'preferred_name', 'a.preferred_name',
-                'membershipExpiryDate', 'a.membershipExpiryDate',
-                'membershipNumber', 'a.membershipNumber',
+                'membershipExpiry', 'a.membershipExpiry',
+                'membershipNo', 'a.membershipNo',
                 'home_group', 'a.home_group',
                 'firstName', 'a.firstName',
                 'lastName', 'a.lastName',
                 'memberType', 'a.memberType',
-                'membershipType', 'a.membershipType',
                 'memberTerm', 'a.memberTerm',
                 'u.email',
-                'memberStatus',
-                'volunteer',
-                'walkProgrammeOptOut',
+                'membershipStatus', 'a.membershipStatus',
+                'teamStatus', 'a.teamStatus',
+                'noWalkProgram', 'a.noWalkProgram',
             );
 
             $this->searchFields = array(
                 'a.preferred_name',
-                'a.membershipNumber',
+                'a.membershipNo',
                 'a.home_group',
                 'a.firstName',
                 'a.lastName',
@@ -102,20 +101,17 @@ class MembersModel extends ListModel {
         $context = $this->getUserStateFromRequest($this->context . '.filter.memberType', 'filter_memberType', '');
         $this->setState('filter.memberType', $context);
 
-        $context = $this->getUserStateFromRequest($this->context . '.filter.memberStatus', 'filter_memberStatus', '');
-        $this->setState('filter.memberStatus', $context);
+        $context = $this->getUserStateFromRequest($this->context . '.filter.membershipStatus', 'filter_membershipStatus', '');
+        $this->setState('filter.membershipStatus', $context);
 
         $context = $this->getUserStateFromRequest($this->context . '.filter.memberTerm', 'filter_memberTerm', '');
         $this->setState('filter.memberTerm', $context);
 
-        $context = $this->getUserStateFromRequest($this->context . '.filter.membershipType', 'filter_membershipType', '');
-        $this->setState('filter.membershipType', $context);
+        $context = $this->getUserStateFromRequest($this->context . '.filter.teamStatus', 'filter_teamStatus', '');
+        $this->setState('filter.teamStatus', $context);
 
-        $context = $this->getUserStateFromRequest($this->context . '.filter.volunteer', 'filter_volunteer', '');
-        $this->setState('filter.volunteer', $context);
-
-        $context = $this->getUserStateFromRequest($this->context . '.filter.walkProgrammeOptOut', 'filter_walkProgrammeOptOut', '');
-        $this->setState('filter.walkProgrammeOptOut', $context);
+        $context = $this->getUserStateFromRequest($this->context . '.filter.noWalkProgram', 'filter_noWalkProgram', '');
+        $this->setState('filter.noWalkProgram', $context);
 
         // Split context into component and optional section
         if (!empty($context)) {
@@ -145,11 +141,10 @@ class MembersModel extends ListModel {
         // Compile the store id.
         $id .= ':' . $this->getState('filter.search');
         $id .= ':' . $this->getState('filter.memberType');
-        $id .= ':' . $this->getState('filter.memberStatus');
+        $id .= ':' . $this->getState('filter.membershipStatus');
         $id .= ':' . $this->getState('filter.memberTerm');
-        $id .= ':' . $this->getState('filter.membershipType');
-        $id .= ':' . $this->getState('filter.volunteer');
-        $id .= ':' . $this->getState('filter.walkProgrammeOptOut');
+        $id .= ':' . $this->getState('filter.teamStatus');
+        $id .= ':' . $this->getState('filter.noWalkProgram');
 
         return parent::getStoreId($id);
     }
@@ -182,7 +177,7 @@ class MembersModel extends ListModel {
         if ($group !== 'N') {
             $query->where($db->quoteName('a.home_group') . ' = ' . $db->quote($group));
         }
-        $query->where('membershipNumber IS NOT NULL');
+        $query->where('membershipNo IS NOT NULL');
 
         $memberType = $this->getState('filter.memberType');
 //		var_dump($memberType);
@@ -190,9 +185,9 @@ class MembersModel extends ListModel {
             $query->where($db->quoteName('a.memberType') . ' = ' . $db->quote($memberType));
         }
 
-        $memberStatus = $this->getState('filter.memberStatus');
-        if ($memberStatus !== null && $memberStatus !== '') {
-            $query->where($db->quoteName('a.memberStatus') . ' = ' . $db->quote($memberStatus));
+        $membershipStatus = $this->getState('filter.membershipStatus');
+        if ($membershipStatus !== null && $membershipStatus !== '') {
+            $query->where($db->quoteName('a.membershipStatus') . ' = ' . $db->quote($membershipStatus));
         }
 
         $memberTerm = $this->getState('filter.memberTerm');
@@ -200,19 +195,14 @@ class MembersModel extends ListModel {
             $query->where($db->quoteName('a.memberTerm') . ' = ' . $db->quote($memberTerm));
         }
 
-        $membershipType = $this->getState('filter.membershipType');
-        if ($membershipType !== null && $membershipType !== '') {
-            $query->where($db->quoteName('a.membershipType') . ' = ' . $db->quote($membershipType));
+        $teamStatus = $this->getState('filter.teamStatus');
+        if ($teamStatus !== null && $teamStatus !== '') {
+            $query->where($db->quoteName('a.teamStatus') . ' = ' . $db->quote($teamStatus));
         }
 
-        $volunteer = $this->getState('filter.volunteer');
-        if ($volunteer !== null && $volunteer !== '') {
-            $query->where($db->quoteName('a.volunteer') . ' = ' . $db->quote($volunteer));
-        }
-
-        $walkProgrammeOptOut = $this->getState('filter.walkProgrammeOptOut');
-        if ($walkProgrammeOptOut !== null && $walkProgrammeOptOut !== '') {
-            $query->where($db->quoteName('a.walkProgrammeOptOut') . ' = ' . $db->quote($walkProgrammeOptOut));
+        $noWalkProgram = $this->getState('filter.noWalkProgram');
+        if ($noWalkProgram !== null && $noWalkProgram !== '') {
+            $query->where($db->quoteName('a.noWalkProgram') . ' = ' . $db->quote($noWalkProgram));
         }
 
         // For non full version, only show Roles for the current User's Group

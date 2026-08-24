@@ -38,7 +38,7 @@ use Joomla\Utilities\ArrayHelper;
 		<tr>
 			<th><?php echo Text::_('COM_RA_MEMBERS_FORM_LBL_MEMBER_MEMBERSHIPEXPIRYDATE'); ?></th>
 			<td>				<?php
-			$date = $this->item->membershipexpirydate;
+			$date = $this->item->membershipExpiry;
 			echo $date > 0 ? HTMLHelper::_('date', $date, Text::_('DATE_FORMAT_LC4')) : '-';
 			?>
 
@@ -47,7 +47,7 @@ use Joomla\Utilities\ArrayHelper;
 
 		<tr>
 			<th><?php echo Text::_('COM_RA_MEMBERS_FORM_LBL_MEMBER_MEMBERSHIP_NUMBER'); ?></th>
-			<td><?php echo $this->item->membership_number; ?></td>
+			<td><?php echo $this->item->membershipNo; ?></td>
 		</tr>
 
 		<tr>
@@ -58,4 +58,3 @@ use Joomla\Utilities\ArrayHelper;
 	</table>
 
 </div>
-

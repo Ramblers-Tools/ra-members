@@ -10,26 +10,26 @@ more than one profile may link to the same `#__users.id`.
 | --- | --- | --- |
 | `memberRef` | `#__ra_profiles.memberRef` | Required, immutable, unique profile identity |
 | `contactId` | `#__ra_profiles.contactId` | Nullable, non-unique diagnostic metadata |
-| `membershipNo` | `#__ra_profiles.membershipNumber` | Nullable |
+| `membershipNo` | `#__ra_profiles.membershipNo` | Nullable |
 | `title` | `#__ra_profiles.title` | Store |
 | `firstName` | `#__ra_profiles.firstName` | Store; combine with last name for Joomla name |
 | `lastName` | `#__ra_profiles.lastName` | Required by the API; combine with first name |
-| `email` | `#__ra_profiles.sourceEmail`, `#__users.email` | Always retain the source value on the profile; null means no user/subscription |
+| `email` | `#__users.email` | Special exception: use for Joomla user matching/storage; null means no user/subscription. It is retained in `sourcePayload`, but has no dedicated profile column. |
 | `friendlyName` | `#__ra_profiles.friendlyName` | Store, but never overwrite locally managed `preferred_name` |
-| `landline` | `#__ra_profiles.landlineTelephone` | Store |
-| `mobile` | `#__ra_profiles.mobileNumber` | Store |
-| `membershipStatus` | `#__ra_profiles.memberStatus` | Store |
+| `landline` | `#__ra_profiles.landline` | Store |
+| `mobile` | `#__ra_profiles.mobile` | Store |
+| `membershipStatus` | `#__ra_profiles.membershipStatus` | Store |
 | `memberType` | `#__ra_profiles.memberType` | Store |
-| `membershipJoinDate` | `#__ra_profiles.ramblersJoinedDate` | Store as date |
-| `membershipExpiry` | `#__ra_profiles.membershipExpiryDate` | Store as date |
+| `membershipJoinDate` | `#__ra_profiles.membershipJoinDate` | Store as date |
+| `membershipExpiry` | `#__ra_profiles.membershipExpiry` | Store as date |
 | `membershipEndDate` | `#__ra_profiles.membershipEndDate` | Store as date |
 | `teamStatus` | `#__ra_profiles.teamStatus` | Store for reporting |
-| `teamRelationshipFrom` | `#__ra_profiles.groupJoinedDate` | Store as date |
+| `teamRelationshipFrom` | `#__ra_profiles.teamRelationshipFrom` | Store as date |
 | requested `team_code` | `#__ra_profiles.home_group` and `groupCode` | Derived from `com_ra_mailman.default_group` |
 | `wellbeingWalker` | `#__ra_profiles.wellbeingWalker` | Store as `1`/`0` |
 | `walkLeader` | `#__ra_profiles.walkLeader` | Store as `1`/`0` |
-| `volunteerRoles` | `#__ra_roles`, `#__ra_profiles.sourcePayload` | Store every role property and retain the complete array snapshot |
-| `noWalkProgram` | `#__ra_profiles.walkProgrammeOptOut` | Store as `1`/`0` |
+| `volunteerRoles` | `#__ra_roles`, `#__ra_profiles.sourcePayload` | Collection exception: store every role property in child rows and retain the complete array snapshot; there is no dedicated profile column. |
+| `noWalkProgram` | `#__ra_profiles.noWalkProgram` | Store as `1`/`0` |
 | `doNotEmail` | `#__ra_profiles.doNotEmail` | Store; does not control devolved subscriptions |
 | `noCampaigning`, `noSurveys` | matching `#__ra_profiles` columns | Store |
 | `canEmailVolunteers`, `canEmailMembers`, `canEmailWellbeingWalkers` | matching `#__ra_profiles` columns | Store as documentary values |

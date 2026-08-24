@@ -47,9 +47,9 @@ class RolesModel extends ListModel {
                 'id', 'a.id',
                 'preferred_name', 'p.preferred_name',
                 'role', 'a.role',
-                'membership_number', 'p.membership_number',
+                'membershipNo', 'p.membershipNo',
                 'home_group', 'p.home_group',
-                'membershipNumber',
+                'membershipNo',
             );
         }
 
@@ -129,7 +129,7 @@ class RolesModel extends ListModel {
                         'list.select', 'DISTINCT a.*'
                 )
         );
-        $query->select('p.preferred_name, p.membershipNumber, o.name');
+        $query->select('p.preferred_name, p.membershipNo, o.name');
         $query->from('`#__ra_roles` AS a');
         $query->join("LEFT", "#__ra_organisations AS o ON o.code=a.organisation_code");
         $query->join("LEFT", "#__ra_profiles AS p ON p.member_id=a.member_id");
@@ -146,7 +146,7 @@ class RolesModel extends ListModel {
                 $query->where('a.id = ' . (int) substr($search, 3));
             } else {
                 $search = $db->Quote('%' . $db->escape($search, true) . '%');
-                $query->where('( a.id LIKE ' . $search . '  OR  a.preferred_name LIKE ' . $search . '  OR  a.role LIKE ' . $search . '  OR  a.membership_number LIKE ' . $search . '  OR  a.home_group LIKE ' . $search . ' )');
+                $query->where('(a.id LIKE ' . $search . ' OR p.preferred_name LIKE ' . $search . ' OR a.role LIKE ' . $search . ' OR p.membershipNo LIKE ' . $search . ' OR p.home_group LIKE ' . $search . ')');
             }
         }
 

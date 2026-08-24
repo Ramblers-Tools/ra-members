@@ -98,7 +98,7 @@ class LoadHelper {
     }
 
     private function buildUserName($member) {
-        $email = $this->normaliseScalar($member['email'] ?? $member['sourceEmail'] ?? null);
+        $email = $this->normaliseScalar($member['email'] ?? null);
 
         if ($email !== null && $this->isDuplicateFeedEmail($email)) {
             $sharedName = $this->sharedUserNameResolver->resolve(
@@ -224,14 +224,14 @@ class LoadHelper {
     private function notifyUserConflict($member, $reason, $user = null, array $profiles = array()) {
         $params = ComponentHelper::getParams('com_ra_tools');
         $to = trim((string) $params->get('email_new_user', ''));
-        $membershipNumber = $this->normaliseScalar($member['membershipNumber'] ?? null);
+        $membershipNo = $this->normaliseScalar($member['membershipNo'] ?? null);
         $memberRef = $this->normaliseScalar($member['memberRef'] ?? null);
         $email = $this->normaliseScalar($member['email'] ?? null);
 
         $message = 'Membership sync requires manual intervention.<br>';
         $message .= 'Reason: ' . htmlspecialchars($reason, ENT_QUOTES, 'UTF-8') . '<br>';
         $message .= 'Member reference: ' . htmlspecialchars((string) $memberRef, ENT_QUOTES, 'UTF-8') . '<br>';
-        $message .= 'Membership number: ' . htmlspecialchars((string) $membershipNumber, ENT_QUOTES, 'UTF-8') . '<br>';
+        $message .= 'Membership number: ' . htmlspecialchars((string) $membershipNo, ENT_QUOTES, 'UTF-8') . '<br>';
         $message .= 'Feed name: ' . htmlspecialchars((string) $this->buildUserName($member), ENT_QUOTES, 'UTF-8') . '<br>';
         $message .= 'Feed email: ' . htmlspecialchars((string) $email, ENT_QUOTES, 'UTF-8') . '<br>';
 
@@ -247,7 +247,7 @@ class LoadHelper {
 
             foreach ($profiles as $profile) {
                 $details[] = 'member_id ' . (int) $profile->member_id
-                        . ' membershipNumber ' . (string) ($profile->membershipNumber ?? '')
+                        . ' membershipNo ' . (string) ($profile->membershipNo ?? '')
                         . ' memberRef ' . (string) ($profile->memberRef ?? '');
             }
 
@@ -309,7 +309,7 @@ class LoadHelper {
 
             foreach ($profiles as $profile) {
                 $details[] = 'member_id ' . (int) $profile->member_id
-                        . ' membershipNumber ' . (string) ($profile->membershipNumber ?? '')
+                        . ' membershipNo ' . (string) ($profile->membershipNo ?? '')
                         . ' memberRef ' . (string) ($profile->memberRef ?? '');
             }
 
@@ -682,9 +682,6 @@ public function getJson(int $apiSiteId, string $code)
                 $this->currentRetrievedAt
         );
 
-        // Email remains authoritative on #__users; this alias is for user matching.
-        $data['email'] = $data['sourceEmail'];
-
         return $data;
     }
 
@@ -857,7 +854,7 @@ public function getJson(int $apiSiteId, string $code)
 
         $memberRef = $this->normaliseScalar($member['memberRef'] ?? null);
         if (JDEBUG) {
-            $this->messages[] = 'Syncing memberRef ' . $memberRef . ', member ' . ($member['membershipNumber'] ?? '');
+            $this->messages[] = 'Syncing memberRef ' . $memberRef . ', member ' . ($member['membershipNo'] ?? '');
         }
 
         if ($memberRef === null) {

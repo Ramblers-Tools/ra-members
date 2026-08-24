@@ -1,38 +1,38 @@
 <?php
 
 /**
- * @version    CVS: 1.0.3
- * @package    com_ra_members
- * @author     Charlie Bigley <charlie@bigley.me.uk>
- * @copyright  2026 Charlie Bigley
- * @license    GNU General Public License version 2 or later; see LICENSE.txt
+ * 02/06/25 CB Created
+ * 24/08/26 CB copied to com_ra_members
  */
 
-namespace Ramblers\Component\Ra_members\Administrator\View\Roles;
+namespace Ramblers\Component\Ra_members\Administrator\View\Import_reports;
 
 // No direct access
 defined('_JEXEC') or die;
 
+use \Joomla\CMS\Factory;
+use Joomla\CMS\Helper\ContentHelper;
 use \Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use \Joomla\CMS\Toolbar\Toolbar;
 use \Joomla\CMS\Toolbar\ToolbarHelper;
 use \Joomla\CMS\Language\Text;
-use \Joomla\Component\Content\Administrator\Extension\ContentComponent;
-use \Joomla\CMS\Form\Form;
 use \Joomla\CMS\HTML\Helpers\Sidebar;
-use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
+use \Joomla\CMS\User\CurrentUserInterface;
+use \Joomla\Component\Content\Administrator\Extension\ContentComponent;
+use \Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
+use \Ramblers\Component\Ra_mailman\Site\Helpers\MailHelper;
 
 /**
- * View class for a list of Roles.
+ * View class for a list of Input_reports.
  *
- * @since  1.0.3
+ * @since  1.0.4
  */
-class HtmlView extends BaseHtmlView {
+class HtmlView extends BaseHtmlView implements CurrentUserInterface {
 
     protected $items;
     protected $pagination;
     protected $state;
-    protected $toolsHelper;
+    protected $user;
 
     /**
      * Display the view
@@ -48,14 +48,13 @@ class HtmlView extends BaseHtmlView {
         $this->items = $this->get('Items');
         $this->pagination = $this->get('Pagination');
         $this->filterForm = $this->get('FilterForm');
-        $this->toolsHelper = new ToolsHelper();
         $this->activeFilters = $this->get('ActiveFilters');
 
         // Check for errors.
         if (count($errors = $this->get('Errors'))) {
             throw new \Exception(implode("\n", $errors));
         }
-
+        $this->user = $this->getCurrentUser();
         $this->addToolbar();
 
         $this->sidebar = Sidebar::render();
@@ -67,44 +66,45 @@ class HtmlView extends BaseHtmlView {
      *
      * @return  void
      *
-     * @since   1.0.3
+     * @since   1.0.4
      */
     protected function addToolbar() {
+        // Suppress menu side panel
+        Factory::getApplication()->input->set('hidemainmenu', true);
         $state = $this->get('State');
-        $canDo = ToolsHelper::getActions('com_ra_delivery');
+        $canDo = ContentHelper::getActions('com_ra_mailman');
 
-        ToolbarHelper::title(Text::_('Roles'), "generic");
+        ToolbarHelper::title(Text::_('Import reports'), "generic");
 
         $toolbar = Toolbar::getInstance('toolbar');
-        $toolbar->addNew('role.add');
+        /*
+          if ($canDo->get('core.edit.state')) {
+          $dropdown = $toolbar->dropdownButton('status-group')
+          ->text('JTOOLBAR_CHANGE_STATUS')
+          ->toggleSplit(false)
+          ->icon('fas fa-ellipsis-h')
+          ->buttonClass('btn btn-action')
+          ->listCheck(true);
 
+          $childBar = $dropdown->getChildToolbar();
+
+          if (isset($this->items[0]->state)) {
+          $childBar->publish('import_reports.publish')->listCheck(true);
+          $childBar->unpublish('import_reports.unpublish')->listCheck(true);
+          }
+          }
+         *
+         */
         $toolbar->standardButton('nrecords')
                 ->icon('fa fa-info-circle')
                 ->text(number_format($this->pagination->total) . ' Records')
                 ->task('')
                 ->onclick('return false')
                 ->listCheck(false);
+        ToolbarHelper::cancel('import_reports.cancel', 'Return to Dashboard');
 
-        ToolbarHelper::cancel('roles.cancel', 'Return to Dashboard');
-//        $help_url = 'https://docs.stokeandnewcastleramblers.org.uk/mail-manager.html?view=article&id=420:mm-02-2-mailing-lists&catid=34';
-//        ToolbarHelper::help('', false, $help_url);
         // Set sidebar action
-        Sidebar::setAction('index.php?option=com_ra_members&view=roles');
-    }
-
-    /**
-     * Method to order fields
-     *
-     * @return void
-     */
-    protected function getSortFields() {
-        return array(
-            'a.`id`' => Text::_('JGRID_HEADING_ID'),
-            'p.`preferred_name`' => Text::_('COM_RA_MEMBERS_ROLES_PREFERRED_NAME'),
-            'a.`role`' => Text::_('COM_RA_MEMBERS_ROLES_ROLE'),
-            'p.`membershipNo`' => Text::_('COM_RA_MEMBERS_ROLES_MEMBERSHIP_NUMBER'),
-            'p.`home_group`' => Text::_('COM_RA_MEMBERS_ROLES_HOME_GROUP'),
-        );
+        Sidebar::setAction('index.php?option=com_ra_mailman&view=import_reports');
     }
 
     /**

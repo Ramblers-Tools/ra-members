@@ -120,7 +120,7 @@ if (empty($this->items)) {
         }
 
         echo '<td>';
-        $sql_count = 'SELECT COUNT(member_id) FROM #__ra_profiles WHERE membershipNumber IS NOT NULL AND ';
+        $sql_count = 'SELECT COUNT(member_id) FROM #__ra_profiles WHERE membershipNo IS NOT NULL AND ';
         if ($item->record_type == 'A') {
             $memberCount = $objHelper->getValue($sql_count . 'home_group LIKE "' . $item->code . '%"');
         } else {

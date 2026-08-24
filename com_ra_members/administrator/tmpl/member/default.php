@@ -25,7 +25,7 @@ $showDate = static function ($value) {
     return HTMLHelper::_('date', $value, 'd/M/y');
 };
 
-echo 'Mem No: <b>' . $this->item->membershipNumber . '</b>, Member reference: <b>' . $this->item->memberRef . '</b>';
+echo 'Mem No: <b>' . $this->item->membershipNo . '</b>, Member reference: <b>' . $this->item->memberRef . '</b>';
 if (!empty($this->item->contactId)) {
     echo ', Contact id: <b>' . $this->item->contactId . '</b>';
 }
@@ -71,14 +71,14 @@ if ($this->item->postcode !== '') {
 echo '</b><br>';
 echo 'Phone: <b>';
 $phones = '';
-if (!is_null($this->item->mobileNumber)) {
-    $phones = 'Mobile <b>' . $this->item->mobileNumber . '</b>';
+if (!is_null($this->item->mobile)) {
+    $phones = 'Mobile <b>' . $this->item->mobile . '</b>';
 }
-if (!is_null($this->item->landlineTelephone)) {
+if (!is_null($this->item->landline)) {
     if ($phones !== '') {
         $phones .= ', ';
     }
-    $phones .= 'Landline <b>' . $this->item->landlineTelephone . '</b>';
+    $phones .= 'Landline <b>' . $this->item->landline . '</b>';
 }
 if ($phones == '') {
     echo 'No phone';
@@ -116,67 +116,47 @@ echo '<br>';
 
 // $this->toolsHelper
 echo 'Member Type: <b>' . $this->item->memberType . '</b><br>';
-echo 'Member Arrangement: <b>' . $this->item->membershipArrangement . '</b>';
-if (!is_null($this->item->jointWith)) {
-    echo ', Joint with: <b>' . $this->item->jointWith . '</b>';
-    $partner = $this->mailHelper->lookupMember($this->item->jointWith);
-    if (!$partner) {
-        $partner = 'Not found';
-    }
-    echo ' ' . $partner;
-}
-if (!is_null($this->item->affiliateMemberPrimaryGroup)) {
-    echo ', Affiliate group: <b>' . $this->item->affiliateMemberPrimaryGroup . '</b>';
-}
-echo '<br>';
-echo 'Member Status: <b>' . $this->item->memberStatus . '</b><br>';
+echo 'Team Status: <b>' . $this->item->teamStatus . '</b><br>';
+echo 'Member Status: <b>' . $this->item->membershipStatus . '</b><br>';
 echo 'Membership Term:<b> ' . $this->item->memberTerm . '</b><br>';
 echo 'Joined: ';
-if ($this->item->ramblersJoinedDate !== '') {
-    echo 'Ramblers <b>' . $showDate($this->item->ramblersJoinedDate) . '</b>';
+if ($this->item->membershipJoinDate !== '') {
+    echo 'Ramblers <b>' . $showDate($this->item->membershipJoinDate) . '</b>';
 }
 if (!is_null($this->item->areaJoinedDate)) {
     echo ', Area <b>' . $showDate($this->item->areaJoinedDate) . '</b>';
 }
-if (!is_null($this->item->groupJoinedDate)) {
-    echo ', Group <b>' . $showDate($this->item->groupJoinedDate) . '</b>';
+if (!is_null($this->item->teamRelationshipFrom)) {
+    echo ', Group <b>' . $showDate($this->item->teamRelationshipFrom) . '</b>';
 }
 
 echo '<br>';
-echo 'Volunteer <b>';
-echo ($this->item->volunteer == 'Y') ? 'Yes' : 'No';
-echo '</b><br>';
+echo 'Wellbeing Walker: <b>' . ($this->item->wellbeingWalker == 1 ? 'Yes' : 'No') . '</b>, ';
+echo 'Walk Leader: <b>' . ($this->item->walkLeader == 1 ? 'Yes' : 'No') . '</b><br>';
 echo 'Email Marketing Consent: <b>';
-echo ($this->item->emailMarketingConsent == 'Y') ? 'Yes' : 'No';
+echo ($this->item->emailConsent == 1) ? 'Yes' : 'No';
 echo '</b>';
-if (!is_null($this->item->emailPermissionLastUpdated)) {
-    echo ' Last updated <b>' . $showDate($this->item->emailPermissionLastUpdated) . '</b>';
+if (!is_null($this->item->emailConsentLastUpdated)) {
+    echo ' Last updated <b>' . $showDate($this->item->emailConsentLastUpdated) . '</b>';
 }
 echo '<br>';
 echo 'Post Marketing Consent: <b>';
-echo ($this->item->postMarketingConsent == 'Y') ? 'Yes' : 'No' . '</b>';
-if (!is_null($this->item->postPermissionLastUpdated)) {
-    echo ' Last updated <b>' . $showDate($this->item->postPermissionLastUpdated) . '</b>';
+echo ($this->item->postConsent == 1) ? 'Yes' : 'No';
+echo '</b>';
+if (!is_null($this->item->postConsentLastUpdated)) {
+    echo ' Last updated <b>' . $showDate($this->item->postConsentLastUpdated) . '</b>';
 }
 echo '<br>';
 echo 'Telephone Marketing Consent: <b>';
-echo ($this->item->telephoneDirectMarketing == 'Y') ? 'Yes' : 'No';
-if (!is_null($this->item->telephonePermissionLastUpdated)) {
-    echo '</b> Last updated <b>' . $showDate($this->item->telephonePermissionLastUpdated);
+echo ($this->item->phoneConsent == 1) ? 'Yes' : 'No';
+if (!is_null($this->item->phoneConsentLastUpdated)) {
+    echo '</b> Last updated <b>' . $showDate($this->item->phoneConsentLastUpdated);
 }
 echo '</b><br>';
 
-echo 'Group emails consent: <b>';
-echo ($this->item->groupMarketingConsent == 'Y') ? 'Yes' : 'No';
-echo '</b>, Area emails consent: <b>';
-echo (($this->item->areaMarketingConsent == 'Y') ? 'Yes' : 'No');
-echo '</b>, Other emails consent: <b>';
-echo '' . ($this->item->otherMarketingConsent == 'Y') ? 'Yes' : 'No';
-echo '</b><br>';
-
 echo 'Walk Programme Opt Out: <b>';
-echo ($this->item->walkProgrammeOptOut == 'Y') ? 'Yes' : 'No' . '</b><br>';
-// affiliateMemberPrimaryGroup
+echo ($this->item->noWalkProgram == 1) ? 'Yes' : 'No';
+echo '</b><br>';
 
 echo '</b><br>';
 

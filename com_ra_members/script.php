@@ -476,11 +476,7 @@ class Com_Ra_membersInstallerScript {
 
              */
         }
-        if (version_compare($this->current_version, '1.1.7', 'le')) {
-            $this->checkColumn('ra_profiles', 'welcome_sent_date', 'A', 'DATE DEFAULT NULL AFTER affiliateMemberPrimaryGroup; ');
-        }
         if (version_compare($this->current_version, '1.2', 'le')) {
-            $this->checkColumn('ra_profiles', 'title', 'U', 'VARCHAR(10) DEFAULT ""; ');
             $this->checkColumn('ra_organisations', 'notes', 'A', 'MEDIUMTEXT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NULL AFTER details; ');
             $this->checkColumn('ra_organisations', 'uses_ra_tools', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER mailman_active; ');
             $this->checkColumn('ra_organisations', 'uses_ra_mailman', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER uses_ra_tools; ');

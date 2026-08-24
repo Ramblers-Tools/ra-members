@@ -56,7 +56,7 @@ if (!empty($saveOrder)) {
                                 <?php echo HTMLHelper::_('searchtools.sort', 'Group', 'o.name', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
-                                <?php echo HTMLHelper::_('searchtools.sort', 'Membership No', 'a.membershipNumber', $listDirn, $listOrder); ?>
+                                <?php echo HTMLHelper::_('searchtools.sort', 'Membership No', 'p.membershipNo', $listDirn, $listOrder); ?>
                             </th>
 
                             <th class='left'>
@@ -103,7 +103,7 @@ if (!empty($saveOrder)) {
                                     <?php
                                     echo $item->organisation_code . '</td>';
 
-                                    echo '<td>' . $item->membershipNumber . '</td>';
+                                    echo '<td>' . $item->membershipNo . '</td>';
                                     echo '<td>' . $item->preferred_name . '</td>';
                                     echo '<td>' . $item->role . '</td>';
                                     if ($canEdit) {

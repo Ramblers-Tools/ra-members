@@ -6,7 +6,6 @@
  * @author     Charlie Bigley <charlie@bigley.me.uk>
  * @copyright  2026 Charlie Bigley
  * @license    GNU General Public License version 2 or later; see LICENSE.txt
- * 09/07/26 CB truncate affiliateMemberPrimaryGroup
  */
 
 namespace Ramblers\Component\Ra_members\Administrator\Table;
@@ -131,28 +130,24 @@ class MemberTable extends Table implements VersionableTableInterface, TaggableTa
             $this->modified = NULL;
         }
 
-        // Support for empty date field: membershipexpirydate
-        if ($array['membershipexpirydate'] == '0000-00-00' || empty($array['membershipexpirydate'])) {
-            $array['membershipexpirydate'] = NULL;
-            $this->membershipexpirydate = NULL;
+        // Support for empty membership expiry date.
+        if (isset($array['membershipExpiry']) && ($array['membershipExpiry'] == '0000-00-00' || $array['membershipExpiry'] === '')) {
+            $array['membershipExpiry'] = NULL;
+            $this->membershipExpiry = NULL;
         }
         // ensure group codes are uppercase
         if (isset($array['home_group'])) {
             $array['home_group'] = strtoupper(trim((string) $array['home_group']));
         }
         if (isset($array['groupCode'])) {
-            $array['group_code'] = strtoupper(trim((string) $array['groupCode']));
+            $array['groupCode'] = strtoupper(trim((string) $array['groupCode']));
         }
         // Ensure names are in sentence case without relying on removed Joomla helpers.
         if (isset($array['firstName'])) {
-            $array['first_name'] = $this->normaliseName(trim((string) $array['firstName']));
+            $array['firstName'] = $this->normaliseName(trim((string) $array['firstName']));
         }
         if (isset($array['lastName'])) {
-            $array['last_name'] = $this->normaliseName(trim((string) $array['lastName']));
-        }   
-        // Truncate affiliate group, keep just the 4 character code
-        if (isset($array['affiliateMemberPrimaryGroup'])) {
-            $array['affiliateMemberPrimaryGroup'] = strtoupper(substr(trim((string) $array['affiliateMemberPrimaryGroup']), 0, 4));
+            $array['lastName'] = $this->normaliseName(trim((string) $array['lastName']));
         }
 
 

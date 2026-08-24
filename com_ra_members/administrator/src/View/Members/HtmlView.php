@@ -109,8 +109,8 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
         return array(
             'a.`id`' => Text::_('JGRID_HEADING_ID'),
             'a.`preferred_name`' => Text::_('COM_RA_MEMBERS_MEMBERS_PREFERRED_NAME'),
-            'a.`membershipexpirydate`' => Text::_('COM_RA_MEMBERS_MEMBERS_MEMBERSHIPEXPIRYDATE'),
-            'a.`membership_number`' => Text::_('COM_RA_MEMBERS_MEMBERS_MEMBERSHIP_NUMBER'),
+            'a.`membershipExpiry`' => Text::_('COM_RA_MEMBERS_MEMBERS_MEMBERSHIPEXPIRYDATE'),
+            'a.`membershipNo`' => Text::_('COM_RA_MEMBERS_MEMBERS_MEMBERSHIP_NUMBER'),
             'a.`home_group`' => Text::_('COM_RA_MEMBERS_MEMBERS_HOME_GROUP'),
         );
     }

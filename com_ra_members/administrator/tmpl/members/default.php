@@ -44,7 +44,7 @@ $listDirn = $this->state->get('list.direction');
                         <tr>
 
                             <th class='left'>
-                                <?php echo HTMLHelper::_('searchtools.sort', 'Mem No', 'a.membershipNumber', $listDirn, $listOrder); ?>
+                                <?php echo HTMLHelper::_('searchtools.sort', 'Mem No', 'a.membershipNo', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
                                 <?php echo HTMLHelper::_('searchtools.sort', 'Group', 'a.home_group', $listDirn, $listOrder); ?>
@@ -62,16 +62,16 @@ $listDirn = $this->state->get('list.direction');
                                 <?php echo HTMLHelper::_('searchtools.sort', 'Mem type', 'a.memberType', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
-                                <?php echo HTMLHelper::_('searchtools.sort', 'Status', 'a.memberStatus', $listDirn, $listOrder); ?>
+                                <?php echo HTMLHelper::_('searchtools.sort', 'Status', 'a.membershipStatus', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
-                                <?php echo HTMLHelper::_('searchtools.sort', 'Memshp type', 'a.membershipType', $listDirn, $listOrder); ?>
+                                <?php echo HTMLHelper::_('searchtools.sort', 'Team status', 'a.teamStatus', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
                                 <?php echo HTMLHelper::_('searchtools.sort', 'Term', 'a.memberTerm', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
-                                <?php echo HTMLHelper::_('searchtools.sort', 'Exp date', 'a.membershipExpiryDate', $listDirn, $listOrder); ?>
+                                <?php echo HTMLHelper::_('searchtools.sort', 'Exp date', 'a.membershipExpiry', $listDirn, $listOrder); ?>
                             </th>
                         </tr>
                     </thead>
@@ -95,7 +95,7 @@ $listDirn = $this->state->get('list.direction');
 
                                 <?php
                                 $target = '/administrator/index.php?option=com_ra_members&view=member&member_id=' . (int) $item->member_id;
-                                $linkText = ($item->membershipNumber === null || $item->membershipNumber === '') ? '(blank)' : $item->membershipNumber;
+                                $linkText = ($item->membershipNo === null || $item->membershipNo === '') ? '(blank)' : $item->membershipNo;
                                 echo '<td>' . $this->toolsHelper->buildLink($target, $linkText) . '</td>';
                                 echo '<td>' . $item->home_group . '</td>';
 
@@ -103,13 +103,13 @@ $listDirn = $this->state->get('list.direction');
                                 echo '<td>' . $item->firstName . '</td>';
                                 echo '<td>' . $item->email . '</td>';
                                 echo '<td>' . $item->memberType . '</td>';
-                                echo '<td>' . $item->memberStatus . '</td>';
-                                echo '<td>' . $item->membershipType . '</td>';
+                                echo '<td>' . $item->membershipStatus . '</td>';
+                                echo '<td>' . $item->teamStatus . '</td>';
                                 echo '<td>' . $item->memberTerm . '</td>';
                                 ?>
                                 <td>
                                     <?php
-                                    $date = $item->membershipExpiryDate;
+                                    $date = $item->membershipExpiry;
                                     echo $date > 0 ? HTMLHelper::_('date', $date, Text::_('DATE_FORMAT_LC4')) : '-';
                                     ?>
                                 </td>

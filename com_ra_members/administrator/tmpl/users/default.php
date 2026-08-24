@@ -1,13 +1,9 @@
 <?php
 /**
- * @version    1.1.8
- * @package    com_ra_members
- * @author     Charlie Bigley <charlie@bigley.me.uk>
- * @copyright  2025 Charlie Bigley
- * @license    GNU General Public License version 2 or later; see LICENSE.txt
  * 03/05/25 CB allow edit if MailMan installed (should use tools.profile, not mailman.profile)
  * 05/10/25 CB show SuperUsers
  * 05/07/26 CB copied from com_ra_tools
+ * 24/08/26 CB correct check for com_ra_events
  */
 // No direct access
 defined('_JEXEC') or die;
@@ -41,7 +37,7 @@ $listDirn = $this->state->get('list.direction');
 if (ComponentHelper::isEnabled('com_ra_mailman', true)) {
     $mailman = true;
 }
-if (ComponentHelper::isEnabled('com_ra_mailman', true)) {
+if (ComponentHelper::isEnabled('com_ra_events', true)) {
     $events = true;
 }
 

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+    <fieldset addfieldpath="/components/com_ra_mailman/models/fields">
+            <field
+                name="csv_file"
+                type="file"
+                label="File upload"
+                description="Name of the data file on your computer"
+                size="40"
+                class="inputbox"
+                default=""
+            />
+            <field
+                name="data_type"
+                type="radio"
+                label="Type of data"
+                description="Type of data to load"
+                class="inputbox"
+                size="1"
+                required="true"
+                default="3"
+                >
+                <option value="3">Members list from corporate feed</option>
+                <option value="4">Mailchip export</option>
+                <option value="5">Simple CSV file (group,name,email)</option>
+            </field>
+            <field
+                name="validation_type"
+                type="radio"
+                label="Validation/Process"
+                description="Type of data to load"
+                class="inputbox"
+                showon="data_type:3"
+                size="1"
+                required="true"
+                default="2"
+                >
+                <option value="1">Check format of first four records</option>
+                <option value="2">Process the complete file</option>
+            </field>
+            <field
+                name="file"
+                type="hidden"
+                label="File upload"
+                description="Currently selected file"
+                readonly="true"
+            />
+            <field
+                name="tmp_name"
+                type="hidden"
+                label="Temporary file"
+                description="Used internally"
+                readonly="true"
+            />
+            <field
+                name="mail_list"
+                type="sql"
+                label="Mailing list"
+                query="SELECT id AS value, CONCAT(group_code,' ',name) as mail_list FROM `#__ra_mail_lists`ORDER BY group_code, name"
+                required="true"
+            />
+            <field
+                name="processing"
+                type="hidden"
+                description="Validation only, or commit changes to the database"
+                default="0"
+               />
+</fieldset>
+</form>
