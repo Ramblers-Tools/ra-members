@@ -25,7 +25,10 @@ $showDate = static function ($value) {
     return HTMLHelper::_('date', $value, 'd/M/y');
 };
 
-echo 'Mem No: <b>' . $this->item->membershipNumber . '</b>, SalesForce id: <b>' . $this->item->salesforceId . '</b>';
+echo 'Mem No: <b>' . $this->item->membershipNumber . '</b>, Member reference: <b>' . $this->item->memberRef . '</b>';
+if (!empty($this->item->contactId)) {
+    echo ', Contact id: <b>' . $this->item->contactId . '</b>';
+}
 if (!is_null($this->item->member_id)) {
     echo ', Internal id: <b>' . $this->item->member_id . '</b>';
 }

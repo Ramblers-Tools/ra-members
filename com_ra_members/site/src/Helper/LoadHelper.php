@@ -26,6 +26,7 @@ use Ramblers\Component\Ra_tools\Site\Helpers\JsonHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\UserHelper;
 use Ramblers\Component\Ra_members\Site\Service\SupporterApiConfig;
+use Ramblers\Component\Ra_members\Site\Service\SupporterMapper;
 use Ramblers\Component\Ra_tools\Administrator\Table\ProfileTable;
 
 class LoadHelper {
@@ -39,10 +40,12 @@ class LoadHelper {
     protected $profileColumns;
     protected $auditColumns;
     protected $roleColumns;
+    protected $supporterMapper;
     protected $userColumns;
     protected $duplicateFeedMembers = array();
     protected $duplicateFeedNotifications = array();
     protected $currentGroupCode = '';
+    protected $currentRetrievedAt = '';
     private $counter = 0;
     public $batch_mode = false; // if true, messages are added to $this->messages instead of enqueued, for display at the end of the batch process
     public $comments;
@@ -60,6 +63,7 @@ class LoadHelper {
         $this->db = Factory::getDbo();
         $this->jsonHelper = new JsonHelper;
         $this->mailHelper = new MailHelper;
+        $this->supporterMapper = new SupporterMapper();
         $this->toolsHelper = new ToolsHelper;
         $this->comments = array();
         $this->errors = array();
@@ -75,61 +79,44 @@ class LoadHelper {
     }
 
     private function buildPreferredName($member) {
-        $firstName = $this->firstWord($member['firstName'] ?? '');
-        $lastName = $this->firstWord($member['lastName'] ?? '');
+        $firstName = trim((string) ($member['firstName'] ?? ''));
+        $lastName = trim((string) ($member['lastName'] ?? ''));
         $preferredName = trim($firstName . ' ' . $lastName);
 
         return ($preferredName === '') ? null : $preferredName;
     }
 
     private function buildRoleRows($member, $memberId) {
-        $roleRows = array();
-        $allowedRoles = array('walkLeader', 'emailSender', 'membershipSecretary');
-
-        foreach (($member['groupMemberships'] ?? array()) as $groupMembership) {
-            $groupMembership = $this->normaliseMember($groupMembership);
-            $groupCode = $this->normaliseScalar($groupMembership['groupCode'] ?? null);
-
-            if ($groupCode === null) {
-                continue;
-            }
-
-            $roles = $this->normaliseMember($groupMembership['roles'] ?? array());
-
-            foreach ($allowedRoles as $roleName) {
-                if (($roles[$roleName] ?? false) === true) {
-                    $roleRows[$groupCode . ':' . $roleName] = array(
-                        'member_id' => $memberId,
-                        'organisation_code' => $groupCode,
-                        'role' => $roleName,
-                    );
-                }
-            }
-        }
-
-        foreach (($member['areaMemberships'] ?? array()) as $areaMembership) {
-            $areaMembership = $this->normaliseMember($areaMembership);
-            $areaCode = $this->normaliseScalar($areaMembership['areaCode'] ?? null);
-
-            if ($areaCode === null) {
-                continue;
-            }
-
-            $roles = $this->normaliseMember($areaMembership['roles'] ?? array());
-
-            if (($roles['emailSender'] ?? false) === true) {
-                $roleRows[$areaCode . ':emailSender'] = array(
-                    'member_id' => $memberId,
-                    'organisation_code' => $areaCode,
-                    'role' => 'emailSender',
-                );
-            }
-        }
-
-        return array_values($roleRows);
+        return $this->supporterMapper->mapVolunteerRoles(
+                $this->normaliseMember($member),
+                (int) $memberId,
+                $this->currentGroupCode
+        );
     }
 
     private function buildUserName($member) {
+        $email = $this->normaliseScalar($member['email'] ?? $member['sourceEmail'] ?? null);
+
+        if ($email !== null && $this->isDuplicateFeedEmail($email)) {
+            $names = array();
+
+            foreach ($this->duplicateFeedMembers[strtolower($email)] as $sharedMember) {
+                $sharedMember = $this->normaliseMember($sharedMember);
+                $memberRef = (string) ($sharedMember['memberRef'] ?? '');
+                $fullName = trim((string) ($sharedMember['firstName'] ?? '') . ' '
+                        . (string) ($sharedMember['lastName'] ?? ''));
+
+                if ($fullName !== '') {
+                    $names[$memberRef . ':' . $fullName] = $fullName;
+                }
+            }
+
+            if (!empty($names)) {
+                ksort($names, SORT_NATURAL | SORT_FLAG_CASE);
+                return implode(' and ', array_values($names));
+            }
+        }
+
         $firstName = trim((string) ($member['firstName'] ?? ''));
         $lastName = trim((string) ($member['lastName'] ?? ''));
         $name = trim($firstName . ' ' . $lastName);
@@ -176,22 +163,6 @@ class LoadHelper {
         $this->messages[] = $message;
         $this->logMessage($message, '3');
         return false;
-    }
-
-    private function getLegacyProfileByUserId($userId) {
-        if ((int) $userId <= 0) {
-            return null;
-        }
-
-        $query = $this->db->getQuery(true)
-                ->select('*')
-                ->from($this->db->quoteName('#__ra_profiles'))
-                ->where($this->db->quoteName('id') . ' = ' . (int) $userId)
-                ->where($this->db->quoteName('salesforceId') . ' IS NULL');
-
-        $this->db->setQuery($query, 0, 1);
-
-        return $this->db->loadObject();
     }
 
     private function getProfileByUserId($userId) {
@@ -261,12 +232,12 @@ class LoadHelper {
         $params = ComponentHelper::getParams('com_ra_tools');
         $to = trim((string) $params->get('email_new_user', ''));
         $membershipNumber = $this->normaliseScalar($member['membershipNumber'] ?? null);
-        $salesforceId = $this->normaliseScalar($member['salesforceId'] ?? null);
+        $memberRef = $this->normaliseScalar($member['memberRef'] ?? null);
         $email = $this->normaliseScalar($member['email'] ?? null);
 
         $message = 'Membership sync requires manual intervention.<br>';
         $message .= 'Reason: ' . htmlspecialchars($reason, ENT_QUOTES, 'UTF-8') . '<br>';
-        $message .= 'Salesforce ID: ' . htmlspecialchars((string) $salesforceId, ENT_QUOTES, 'UTF-8') . '<br>';
+        $message .= 'Member reference: ' . htmlspecialchars((string) $memberRef, ENT_QUOTES, 'UTF-8') . '<br>';
         $message .= 'Membership number: ' . htmlspecialchars((string) $membershipNumber, ENT_QUOTES, 'UTF-8') . '<br>';
         $message .= 'Feed name: ' . htmlspecialchars((string) $this->buildUserName($member), ENT_QUOTES, 'UTF-8') . '<br>';
         $message .= 'Feed email: ' . htmlspecialchars((string) $email, ENT_QUOTES, 'UTF-8') . '<br>';
@@ -284,7 +255,7 @@ class LoadHelper {
             foreach ($profiles as $profile) {
                 $details[] = 'member_id ' . (int) $profile->member_id
                         . ' membershipNumber ' . (string) ($profile->membershipNumber ?? '')
-                        . ' salesforceId ' . (string) ($profile->salesforceId ?? '');
+                        . ' memberRef ' . (string) ($profile->memberRef ?? '');
             }
 
             $message .= 'Linked profiles: ' . htmlspecialchars(implode('; ', $details), ENT_QUOTES, 'UTF-8') . '<br>';
@@ -294,8 +265,8 @@ class LoadHelper {
             $this->toolsHelper->sendEmail($to, '', 'Membership sync conflict for shared email', $message);
         }
 
-        $this->messages[] = 'Manual intervention required for Salesforce ID ' . $salesforceId . ': ' . $reason;
-        $this->logMessage('Manual intervention required for Salesforce ID ' . $salesforceId . ': ' . $reason, '3');
+        $this->messages[] = 'Manual intervention required for memberRef ' . $memberRef . ': ' . $reason;
+        $this->logMessage('Manual intervention required for memberRef ' . $memberRef . ': ' . $reason, '3');
     }
 
     private function notifyDuplicateFeedEmail($email, $user = null, array $profiles = array()) {
@@ -326,8 +297,8 @@ class LoadHelper {
 
             foreach ($members as $member) {
                 $rows[] = htmlspecialchars((string) $this->buildUserName($member), ENT_QUOTES, 'UTF-8')
-                        . ' / Salesforce ID ' . htmlspecialchars((string) ($member['salesforceId'] ?? ''), ENT_QUOTES, 'UTF-8')
-                        . ' / Membership number ' . htmlspecialchars((string) ($member['membershipNumber'] ?? ''), ENT_QUOTES, 'UTF-8');
+                        . ' / memberRef ' . htmlspecialchars((string) ($member['memberRef'] ?? ''), ENT_QUOTES, 'UTF-8')
+                        . ' / Membership number ' . htmlspecialchars((string) ($member['membershipNo'] ?? ''), ENT_QUOTES, 'UTF-8');
             }
 
             $message .= 'Feed members: ' . implode('<br>', $rows) . '<br>';
@@ -346,7 +317,7 @@ class LoadHelper {
             foreach ($profiles as $profile) {
                 $details[] = 'member_id ' . (int) $profile->member_id
                         . ' membershipNumber ' . (string) ($profile->membershipNumber ?? '')
-                        . ' salesforceId ' . (string) ($profile->salesforceId ?? '');
+                        . ' memberRef ' . (string) ($profile->memberRef ?? '');
             }
 
             $message .= 'Linked profiles: ' . htmlspecialchars(implode('; ', $details), ENT_QUOTES, 'UTF-8') . '<br>';
@@ -362,32 +333,9 @@ class LoadHelper {
     }
 
     private function resolveProfileRow($member) {
-        $salesforceId = $this->normaliseScalar($member['salesforceId'] ?? null);
-        $profile = $this->getProfileBySalesforceId($salesforceId);
+        $memberRef = $this->normaliseScalar($member['memberRef'] ?? null);
 
-        if ($profile !== null) {
-            return array($profile, false);
-        }
-
-        $email = $this->normaliseScalar($member['email'] ?? null);
-
-        if ($email === null) {
-            return array(null, false);
-        }
-
-        $user = $this->lookupUser($email);
-
-        if (!is_object($user) || empty($user->id)) {
-            return array(null, false);
-        }
-
-        $legacyProfile = $this->getLegacyProfileByUserId((int) $user->id);
-
-        if ($legacyProfile !== null) {
-            return array($legacyProfile, true);
-        }
-
-        return array(null, false);
+        return array($this->getProfileByMemberRef($memberRef), false);
     }
 
     private function resolveUserId($member, $profileRow) {
@@ -395,10 +343,6 @@ class LoadHelper {
         $isDuplicateFeedEmail = $this->isDuplicateFeedEmail($email);
 
         if ($email === null) {
-            if (is_object($profileRow) && !empty($profileRow->id)) {
-                return array((int) $profileRow->id, false, false);
-            }
-
             return array(null, false, false);
         }
 
@@ -419,12 +363,7 @@ class LoadHelper {
                 $sharedProfiles = $this->getProfilesByUserId($existingUserId, (int) ($profileRow->member_id ?? 0));
                 $needsUserUpdate = $this->normaliseScalar($existingUser->name ?? null) !== $this->normaliseScalar($desiredName) || $this->normaliseScalar($existingUser->email ?? null) !== $email || $this->normaliseScalar($existingUser->username ?? null) !== $email;
 
-                if ($isDuplicateFeedEmail) {
-                    $this->notifyDuplicateFeedEmail($email, $existingUser, $this->getProfilesByUserId($existingUserId));
-                    return array($existingUserId, false, false);
-                }
-
-                if (!empty($sharedProfiles) && $needsUserUpdate) {
+                if (!empty($sharedProfiles) && $needsUserUpdate && !$isDuplicateFeedEmail) {
                     $this->notifyUserConflict($member, 'shared Joomla user would need updating', $existingUser, $sharedProfiles);
                     return array($existingUserId, false, false);
                 }
@@ -440,12 +379,9 @@ class LoadHelper {
         if (is_object($matchedUser) && !empty($matchedUser->id)) {
             $sharedProfiles = $this->getProfilesByUserId((int) $matchedUser->id, (int) ($profileRow->member_id ?? 0));
 
-            if ($isDuplicateFeedEmail) {
-                $this->notifyDuplicateFeedEmail($email, $matchedUser, $this->getProfilesByUserId((int) $matchedUser->id));
-                return array((int) $matchedUser->id, false, true);
-            }
-
-            if (!empty($sharedProfiles) && $this->normaliseScalar($matchedUser->name ?? null) !== $this->normaliseScalar($desiredName)) {
+            if (!empty($sharedProfiles)
+                    && $this->normaliseScalar($matchedUser->name ?? null) !== $this->normaliseScalar($desiredName)
+                    && !$isDuplicateFeedEmail) {
                 $this->notifyUserConflict($member, 'matched shared Joomla user would need a name change', $matchedUser, $sharedProfiles);
                 return array((int) $matchedUser->id, false, true);
             }
@@ -453,11 +389,6 @@ class LoadHelper {
             $this->updateUserRecord((int) $matchedUser->id, $member, $matchedUser);
 
             return array((int) $matchedUser->id, false, true);
-        }
-
-        if ($isDuplicateFeedEmail) {
-            $this->notifyDuplicateFeedEmail($email);
-            return array(null, false, false);
         }
 
         $createdUserId = $this->createUserFromMember($member);
@@ -527,10 +458,6 @@ class LoadHelper {
         }
 
         return $profile;
-    }
-
-    private function doesMemberExist($salesforceId) {
-        return $this->getProfileBySalesforceId($salesforceId);
     }
 
     private function firstWord($token) {
@@ -621,19 +548,14 @@ public function getJson(int $apiSiteId, string $code)
     }
 
     $separator = strpos($site->getUrl(), '?') === false ? '?' : '&';
-    /*
-    This consruct was created by chatGpt but does not work
     $url = $site->getUrl() . $separator . http_build_query([
         'api_key'   => $site->getToken(),
         'team_code' => $code,
     ], '', '&', PHP_QUERY_RFC3986);
-*/
-    $url = $site->getUrl() . $separator . 'api_key='  . $site->getToken() . '&team_code=' . $code;
 
     if (JDEBUG) {
-        // do not log token
         $this->messages[] = 'Requesting supporters for API site ID ' . $site->getId()
-         . ', URL ' . $url;
+                . ' and team ' . $code;
     }
 
     $curl = curl_init();
@@ -676,11 +598,15 @@ public function getJson(int $apiSiteId, string $code)
     return $decoded;
 }
 
-    private function getProfileBySalesforceId($salesforceId) {
+    private function getProfileByMemberRef($memberRef) {
+        if ($memberRef === null) {
+            return null;
+        }
+
         $query = $this->db->getQuery(true)
                 ->select('*')
                 ->from($this->db->quoteName('#__ra_profiles'))
-                ->where($this->db->quoteName('salesforceId') . ' = ' . $this->db->quote($salesforceId));
+                ->where($this->db->quoteName('memberRef') . ' = ' . $this->db->quote($memberRef));
 
         $this->db->setQuery($query, 0, 1);
 
@@ -755,35 +681,18 @@ public function getJson(int $apiSiteId, string $code)
         return ($value === '') ? null : $value;
     }
     
-    private function normaliseSupporterForLegacySync($member) {
+    private function mapSupporterToProfileData($member) {
         $member = $this->normaliseMember($member);
+        $data = $this->supporterMapper->mapProfile(
+                $member,
+                $this->currentGroupCode,
+                $this->currentRetrievedAt
+        );
 
-        // Stage A: new feed identity/member fields mapped to legacy keys.
-        if (!isset($member['salesforceId']) || $this->normaliseScalar($member['salesforceId']) === null) {
-            $member['salesforceId'] = $member['memberRef'] ?? null; // immutable identity in revised feed
-        }
+        // Email remains authoritative on #__users; this alias is for user matching.
+        $data['email'] = $data['sourceEmail'];
 
-        if (!isset($member['membershipNumber']) || $this->normaliseScalar($member['membershipNumber']) === null) {
-            $member['membershipNumber'] = $member['membershipNo'] ?? null;
-        }
-
-        if (!isset($member['mobileNumber']) || $this->normaliseScalar($member['mobileNumber']) === null) {
-            $member['mobileNumber'] = $member['mobile'] ?? null;
-        }
-
-        if (!isset($member['landlineTelephone']) || $this->normaliseScalar($member['landlineTelephone']) === null) {
-            $member['landlineTelephone'] = $member['landline'] ?? null;
-        }
-
-        if (!isset($member['memberStatus']) || $this->normaliseScalar($member['memberStatus']) === null) {
-            $member['memberStatus'] = $member['membershipStatus'] ?? null;
-        }
-
-        if (!isset($member['groupCode']) || $this->normaliseScalar($member['groupCode']) === null) {
-            $member['groupCode'] = $this->currentGroupCode !== '' ? $this->currentGroupCode : null;
-        }
-
-        return $member;
+        return $data;
     }
 
     private function identifyDuplicateFeedEmails($members) {
@@ -874,156 +783,15 @@ public function getJson(int $apiSiteId, string $code)
 
     private function mapMemberToProfileData($member, $existingProfile = null, $userId = null) {
         $columns = $this->getProfileColumns();
-        $data = array();
+        $data = array_intersect_key($member, $columns);
 
-        $fieldMap = array(
-            'salesforceId' => 'salesforceId',
-            'membershipNumber' => 'membershipNumber',
-            'firstName' => 'firstName',
-            'lastName' => 'lastName',
-            'title' => 'title',
-            'initials' => 'initials',
-            'mobileNumber' => 'mobileNumber',
-            'landlineTelephone' => 'landlineTelephone',
-            'address1' => 'address1',
-            'address2' => 'address2',
-            'address3' => 'address3',
-            'town' => 'town',
-            'county' => 'county',
-            'country' => 'country',
-            'postcode' => 'postcode',
-            'groupName' => 'groupName',
-            'groupCode' => 'groupCode',
-            'memberType' => 'memberType',
-            'memberTerm' => 'memberTerm',
-            'memberStatus' => 'memberStatus',
-            'membershipArrangement' => 'membershipArrangement',
-            'jointWith' => 'jointWith',
-            'groupCode' => 'groupCode',
-            'affiliateMemberPrimaryGroup' => 'affiliateMemberPrimaryGroup',
-        );
-
-        foreach ($fieldMap as $inputField => $columnName) {
-            if (array_key_exists($columnName, $columns)) {
-                $data[$columnName] = $this->normaliseScalar($member[$inputField] ?? null);
-            }
-        }
-
-        if (array_key_exists('memberStatus', $columns)) {
-            $data['memberStatus'] = $this->normaliseEnumValue(
-                    $member['memberStatus'] ?? null,
-                    array('Active', 'Payment Pending'),
-                    'memberStatus',
-                    'Payment Pending'
-            );
-        }
-
-        if (array_key_exists('memberTerm', $columns)) {
-            $data['memberTerm'] = $this->normaliseEnumValue(
-                    $member['memberTerm'] ?? null,
-                    array('Annual', 'Life'),
-                    'memberTerm',
-                    'Annual'
-            );
-        }
-
-        if (array_key_exists('memberType', $columns)) {
-            $data['memberType'] = $this->normaliseEnumValue(
-                    $member['memberType'] ?? null,
-                    array('Member', 'Affiliate'),
-                    'memberType',
-                    'Members'
-            );
-        }
-
-        if (array_key_exists('membershipType', $columns)) {
-            $data['membershipType'] = $this->normaliseEnumValue(
-                    $member['membershipType'] ?? null,
-                    array('Individual', 'Joint'),
-                    'membershipType',
-                    'Individual'
-            );
-        }
-
-        if (array_key_exists('membershipArrangement', $columns)) {
-            $data['membershipArrangement'] = $this->normaliseEnumValue(
-                    $member['membershipArrangement'] ?? $member['membershipType'] ?? null,
-                    array('Individual', 'Joint'),
-                    'membershipArrangement',
-                    'Individual'
-            );
-        }
-
-        if (array_key_exists('type', $columns)) {
-            $data['type'] = $this->normaliseEnumValue(
-                    $member['membershipType'] ?? $member['type'] ?? null,
-                    array('Member', 'Affiliate'),
-                    'type',
-                    'Affiliate'
-            );
-        }
-
-        if (array_key_exists('home_group', $columns)) {
-            $existingHomeGroup = null;
-
-            if (is_object($existingProfile) && property_exists($existingProfile, 'home_group')) {
-                $existingHomeGroup = $this->normaliseScalar($existingProfile->home_group);
-            }
-
-            if ($existingHomeGroup === null) {
-                $data['home_group'] = $this->normaliseScalar($member['groupCode'] ?? null);
-            }
-        }
-
-        if (array_key_exists('preferred_name', $columns)) {
+        if (array_key_exists('preferred_name', $columns)
+                && (!is_object($existingProfile) || empty($existingProfile->member_id))) {
             $data['preferred_name'] = $this->buildPreferredName($member);
         }
 
         if (array_key_exists('id', $columns)) {
             $data['id'] = $userId;
-        }
-
-        $dateFields = array(
-            'membershipExpiryDate' => array('membershipExpiryDate'),
-            // Interim measure: accept both feed names until all sites emit ramblersJoinedDate.
-            'ramblersJoinedDate' => array('ramblersJoinedDate', 'ramblersJoinDate'),
-            'areaJoinedDate' => array('areaJoinedDate'),
-            'groupJoinedDate' => array('groupJoinedDate'),
-            'emailPermissionLastUpdated' => array('emailPermissionLastUpdated'),
-            'postPermissionLastUpdated' => array('postPermissionLastUpdated'),
-            'telephonePermissionLastUpdated' => array('telephonePermissionLastUpdated'),
-        );
-
-        foreach ($dateFields as $columnName => $inputFields) {
-            if (!array_key_exists($columnName, $columns)) {
-                continue;
-            }
-
-            foreach ($inputFields as $inputField) {
-                $formattedDate = $this->formatDateForDatabase($member[$inputField] ?? null);
-
-                if ($formattedDate !== null) {
-                    $data[$columnName] = $formattedDate;
-                    break;
-                }
-            }
-        }
-
-        $booleanFields = array(
-            'volunteer' => 'volunteer',
-            'emailMarketingConsent' => 'emailMarketingConsent',
-            'areaMarketingConsent' => 'areaMarketingConsent',
-            'groupMarketingConsent' => 'groupMarketingConsent',
-            'otherMarketingConsent' => 'otherMarketingConsent',
-            'postDirectMarketing' => 'postDirectMarketing',
-            'telephoneDirectMarketing' => 'telephoneDirectMarketing',
-            'walkProgrammeOptOut' => 'walkProgrammeOptOut',
-        );
-
-        foreach ($booleanFields as $inputField => $columnName) {
-            if (array_key_exists($columnName, $columns)) {
-                $data[$columnName] = $this->booleanToDatabase($member[$inputField] ?? null);
-            }
         }
 
         if (array_key_exists('state', $columns) && !isset($data['state'])) {
@@ -1055,40 +823,52 @@ public function getJson(int $apiSiteId, string $code)
 
         $deleteQuery = $this->db->getQuery(true)
                 ->delete($this->db->quoteName('#__ra_roles'))
-                ->where($this->db->quoteName('member_id') . ' = ' . (int) $memberId);
+                ->where($this->db->quoteName('member_id') . ' = ' . (int) $memberId)
+                ->where($this->db->quoteName('organisation_code') . ' = '
+                        . $this->db->quote($this->currentGroupCode));
 
         $this->db->setQuery($deleteQuery)->execute();
 
         $roleRows = $this->buildRoleRows($member, $memberId);
 
         foreach ($roleRows as $roleRow) {
+            $storedRole = array_intersect_key($roleRow, $columns);
+            $columnNames = [];
+            $values = [];
+
+            foreach ($storedRole as $columnName => $value) {
+                $columnNames[] = $this->db->quoteName($columnName);
+                $values[] = $columnName === 'member_id'
+                        ? (int) $value
+                        : $this->quoteValue($value);
+            }
+
             $query = $this->db->getQuery(true)
                     ->insert($this->db->quoteName('#__ra_roles'))
-                    ->columns(array(
-                        $this->db->quoteName('member_id'),
-                        $this->db->quoteName('organisation_code'),
-                        $this->db->quoteName('role'),
-                    ))
-                    ->values(
-                    (int) $roleRow['member_id'] . ','
-                    . $this->db->quote($roleRow['organisation_code']) . ','
-                    . $this->db->quote($roleRow['role'])
-            );
+                    ->columns($columnNames)
+                    ->values(implode(',', $values));
 
             $this->db->setQuery($query)->execute();
         }
     }
 
     private function syncMember($member) {
+        $supporter = $this->normaliseMember($member);
 
-        $member = $this->normaliseSupporterForLegacySync($member);
-        $salesforceId = $this->normaliseScalar($member['salesforceId'] ?? null);
-        if (JDEBUG) {
-            $this->messages[] = 'Syncing member with Salesforce ID: ' . $salesforceId . ', member ' . ($member['membershipNumber'] ?? '');
+        try {
+            $member = $this->mapSupporterToProfileData($supporter);
+        } catch (\Throwable $exception) {
+            $this->logMessage('Skipped supporter that could not be mapped: ' . $exception->getMessage(), '3');
+            return false;
         }
 
-        if ($salesforceId === null) {
-            $this->logMessage('Skipped record without salesforceId/memberRef', '3');
+        $memberRef = $this->normaliseScalar($member['memberRef'] ?? null);
+        if (JDEBUG) {
+            $this->messages[] = 'Syncing memberRef ' . $memberRef . ', member ' . ($member['membershipNumber'] ?? '');
+        }
+
+        if ($memberRef === null) {
+            $this->logMessage('Skipped record without memberRef', '3');
             return false;
         }
 
@@ -1124,16 +904,16 @@ public function getJson(int $apiSiteId, string $code)
 
             if ($profile === null) {
                 $this->db->transactionRollback();
-                $this->logMessage('Failed to save profile for ' . $salesforceId, '3');
+                $this->logMessage('Failed to save profile for ' . $memberRef, '3');
                 return false;
             }
 
             if ($isNewProfile) {
-                $this->messages[] = 'Created new profile for Salesforce ID: ' . $salesforceId . ' with member_id ' . $profile->member_id;
+                $this->messages[] = 'Created new profile for memberRef ' . $memberRef . ' with member_id ' . $profile->member_id;
                 $this->count_new_profiles++;
                 $this->createProfileAudit($this->getProfileReference($profile), 'C', '', null, '');
             } elseif ($reusedLegacyProfile) {
-                $this->messages[] = 'Reused legacy profile for Salesforce ID: ' . $salesforceId . ' with member_id ' . $profile->member_id;
+                $this->messages[] = 'Reused profile for memberRef ' . $memberRef . ' with member_id ' . $profile->member_id;
                 $this->count_legacy_profiles_reused++;
                 $this->count_updated++;
 
@@ -1150,7 +930,7 @@ public function getJson(int $apiSiteId, string $code)
                 }
             }
 
-            $this->syncRoles($profile, $member);
+            $this->syncRoles($profile, $supporter);
 
             if ($linkRequiresSubscription && (int) $userId > 0) {
                 $this->ensurePrimarySubscription((int) $userId);
@@ -1161,23 +941,24 @@ public function getJson(int $apiSiteId, string $code)
             return true;
         } catch (\Throwable $exception) {
             $this->db->transactionRollback();
-            $this->messages[] = 'Error syncing member ' . $salesforceId . ': ' . $exception->getMessage();
-            $this->logMessage('Error syncing member ' . $salesforceId . ': ' . $exception->getMessage(), '3');
+            $this->messages[] = 'Error syncing member ' . $memberRef . ': ' . $exception->getMessage();
+            $this->logMessage('Error syncing member ' . $memberRef . ': ' . $exception->getMessage(), '3');
             return false;
         }
     }
 
     public function loadMembers(int $apiSiteId) {
-        $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_tools')->get('default_group', '')));
+        $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_mailman')->get('default_group', '')));
 
         if (!preg_match('/^[A-Z0-9]{4}$/', $code)) {
-            $this->messages = array('com_ra_tools default_group must contain four letters or digits.' . $code);
+            $this->messages = array('com_ra_mailman default_group must contain four letters or digits.');
             return false;
         }
 
         $this->currentGroupCode = $code;
 
         $startedAt = Factory::getDate('now', Factory::getConfig()->get('offset'))->toSql(true);
+        $this->currentRetrievedAt = $startedAt;
 
         $this->logMessage('Processing ' . $code, 1);
         $this->messages = array();
@@ -1251,16 +1032,9 @@ public function getJson(int $apiSiteId, string $code)
             $members = iterator_to_array($members, false);
         }
 
-        // Stage A: normalise new supporter payload before duplicate detection/persistence.
-        $normalisedMembers = array();
+        $this->identifyDuplicateFeedEmails($members);
 
         foreach ($members as $member) {
-            $normalisedMembers[] = $this->normaliseSupporterForLegacySync($member);
-        }
-
-        $this->identifyDuplicateFeedEmails($normalisedMembers);
-
-        foreach ($normalisedMembers as $member) {
             $count++;
             $this->syncMember($member);
         }

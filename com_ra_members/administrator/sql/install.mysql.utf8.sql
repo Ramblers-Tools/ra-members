@@ -601,8 +601,13 @@ CREATE TABLE IF NOT EXISTS `#__ra_roles` (
   `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
   `member_id` int NOT NULL,
   `organisation_code` varchar(4) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `role` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `role` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `role_start_date` date DEFAULT NULL,
+  `display_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `walk_leader_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `wellbeing_walks_role` tinyint(1) DEFAULT NULL,
   `last_updated` datetime DEFAULT NULL,
-PRIMARY KEY (`id`)
+PRIMARY KEY (`id`),
+KEY `idx_ra_roles_member_team` (`member_id`, `organisation_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 # ------------------------------------------------------------------------------

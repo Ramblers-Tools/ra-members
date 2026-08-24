@@ -72,7 +72,8 @@ class MembersModel extends ListModel {
                 'a.home_group',
                 'a.firstName',
                 'a.lastName',
-                'a.salesforceId',
+                'a.memberRef',
+                'a.contactId',
             );
         }
 
