@@ -25,6 +25,7 @@ use Ramblers\Component\Ra_mailman\Site\Helpers\Mailhelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\JsonHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\UserHelper;
+use Ramblers\Component\Ra_tools\Site\Service\SharedUserNameResolver;
 use Ramblers\Component\Ra_members\Site\Service\SupporterApiConfig;
 use Ramblers\Component\Ra_members\Site\Service\SupporterMapper;
 use Ramblers\Component\Ra_tools\Administrator\Table\ProfileTable;
@@ -40,6 +41,7 @@ class LoadHelper {
     protected $profileColumns;
     protected $auditColumns;
     protected $roleColumns;
+    protected $sharedUserNameResolver;
     protected $supporterMapper;
     protected $userColumns;
     protected $duplicateFeedMembers = array();
@@ -63,6 +65,7 @@ class LoadHelper {
         $this->db = Factory::getDbo();
         $this->jsonHelper = new JsonHelper;
         $this->mailHelper = new MailHelper;
+        $this->sharedUserNameResolver = new SharedUserNameResolver();
         $this->supporterMapper = new SupporterMapper();
         $this->toolsHelper = new ToolsHelper;
         $this->comments = array();
@@ -98,22 +101,12 @@ class LoadHelper {
         $email = $this->normaliseScalar($member['email'] ?? $member['sourceEmail'] ?? null);
 
         if ($email !== null && $this->isDuplicateFeedEmail($email)) {
-            $names = array();
+            $sharedName = $this->sharedUserNameResolver->resolve(
+                    $this->duplicateFeedMembers[strtolower($email)]
+            );
 
-            foreach ($this->duplicateFeedMembers[strtolower($email)] as $sharedMember) {
-                $sharedMember = $this->normaliseMember($sharedMember);
-                $memberRef = (string) ($sharedMember['memberRef'] ?? '');
-                $fullName = trim((string) ($sharedMember['firstName'] ?? '') . ' '
-                        . (string) ($sharedMember['lastName'] ?? ''));
-
-                if ($fullName !== '') {
-                    $names[$memberRef . ':' . $fullName] = $fullName;
-                }
-            }
-
-            if (!empty($names)) {
-                ksort($names, SORT_NATURAL | SORT_FLAG_CASE);
-                return implode(' and ', array_values($names));
+            if ($sharedName !== null) {
+                return $sharedName;
             }
         }
 
