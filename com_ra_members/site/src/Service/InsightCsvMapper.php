@@ -7,8 +7,8 @@ defined('_JEXEC') or die;
 /**
  * Maps an Insight Hub CSV row to #__ra_profiles fields.
  */
-final class InsightCsvMapper
-{
+final class InsightCsvMapper {
+
     private const FIELD_MAP = [
         'Group' => 'groupName',
         'Mem No.' => 'membershipNo',
@@ -38,16 +38,15 @@ final class InsightCsvMapper
         'Group Code' => 'groupCode',
         'Group Joined Date' => 'teamRelationshipFrom',
         'Volunteer' => 'volunteer',
-        'Email Marketing Consent' => 'emailMarketingConsent',
-        'Email Permission Last Updated' => 'emailPermissionLastUpdated',
-        'Post Direct Marketing' => 'postDirectMarketing',
-        'Post Permission Last Updated' => 'postPermissionLastUpdated',
-        'Telephone Direct Marketing' => 'telephoneDirectMarketing',
-        'Telephone Permission Last Updated' => 'telephonePermissionLastUpdated',
+        'Email Marketing Consent' => 'emailConsent',
+        'Email Permission Last Updated' => 'emailConsentLastUpdated',
+        'Post Direct Marketing' => 'postConsent',
+        'Post Permission Last Updated' => 'postConsentLastUpdated',
+        'Telephone Direct Marketing' => 'phoneConsent',
+        'Telephone Permission Last Updated' => 'phoneConsentLastUpdated',
         'Walk Programme Opt-Out' => 'noWalkProgram',
         'Affiliate Member Primary Group' => 'affiliateMemberPrimaryGroup',
     ];
-
     private const DATE_FIELDS = [
         'membershipExpiry',
         'membershipJoinDate',
@@ -57,22 +56,19 @@ final class InsightCsvMapper
         'postPermissionLastUpdated',
         'telephonePermissionLastUpdated',
     ];
-
     private const BOOLEAN_FIELDS = [
         'volunteer',
-        'emailMarketingConsent',
-        'postDirectMarketing',
-        'telephoneDirectMarketing',
+        'emailConsent',
+        'postConsent',
+        'phonConsent',
         'noWalkProgram',
     ];
 
-    public static function getFieldMap(): array
-    {
+    public static function getFieldMap(): array {
         return self::FIELD_MAP;
     }
 
-    public function validateHeadings(array $headings): array
-    {
+    public function validateHeadings(array $headings): array {
         $indexes = [];
 
         foreach ($headings as $index => $heading) {
@@ -98,8 +94,7 @@ final class InsightCsvMapper
         return $indexes;
     }
 
-    public function mapRow(array $headings, array $row, string $importedAt): array
-    {
+    public function mapRow(array $headings, array $row, string $importedAt): array {
         $indexes = $this->validateHeadings($headings);
         $source = [];
 
@@ -142,16 +137,15 @@ final class InsightCsvMapper
         $data['groupCode'] = strtoupper($data['groupCode']);
         $data['home_group'] = $data['groupCode'];
         $data['insightPayload'] = json_encode(
-            $source,
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+                $source,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         );
         $data['insightImportedAt'] = $importedAt;
 
         return $data;
     }
 
-    private function normaliseHeading($value, bool $first): string
-    {
+    private function normaliseHeading($value, bool $first): string {
         $value = trim((string) $value);
 
         if ($first) {
@@ -161,15 +155,13 @@ final class InsightCsvMapper
         return $value;
     }
 
-    private function normaliseText($value): ?string
-    {
+    private function normaliseText($value): ?string {
         $value = trim((string) ($value ?? ''));
 
         return $value === '' ? null : $value;
     }
 
-    private function normaliseBoolean(?string $value, string $heading): ?int
-    {
+    private function normaliseBoolean(?string $value, string $heading): ?int {
         if ($value === null) {
             return null;
         }
@@ -187,22 +179,21 @@ final class InsightCsvMapper
         throw new \InvalidArgumentException($heading . ' must contain Yes, No, True, False, 1, 0, Y, or N.');
     }
 
-    private function normaliseDate(?string $value, string $heading): ?string
-    {
+    private function normaliseDate(?string $value, string $heading): ?string {
         if ($value === null) {
             return null;
         }
 
         foreach ([
-            '!Y-m-d',
-            '!d/m/Y',
-            '!j/n/Y',
-            '!d-m-Y',
-            '!j-n-Y',
-            '!d/m/Y H:i:s',
-            '!j/n/Y H:i:s',
-            '!d/m/Y H.i.s',
-            '!j/n/Y H.i.s',
+    '!Y-m-d',
+    '!d/m/Y',
+    '!j/n/Y',
+    '!d-m-Y',
+    '!j-n-Y',
+    '!d/m/Y H:i:s',
+    '!j/n/Y H:i:s',
+    '!d/m/Y H.i.s',
+    '!j/n/Y H.i.s',
         ] as $format) {
             $date = \DateTimeImmutable::createFromFormat($format, $value);
             $errors = \DateTimeImmutable::getLastErrors();
@@ -214,4 +205,5 @@ final class InsightCsvMapper
 
         throw new \InvalidArgumentException('Invalid ' . $heading . ': ' . $value);
     }
+
 }

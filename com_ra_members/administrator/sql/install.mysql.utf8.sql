@@ -1,5 +1,33 @@
 # `#__ra_profiles` and `#__ra_profiles_audit` are owned by com_ra_tools.
 # 13/07/26 CB organisation/email_header -> varchar(255)
+# Shared import report table used by RA Members and RA MailMan.
+CREATE TABLE IF NOT EXISTS `#__ra_import_reports` (
+  `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `date_phase1` datetime NOT NULL,
+  `date_completed` datetime DEFAULT NULL,
+  `method_id` int(11) NOT NULL DEFAULT 3,
+  `list_id` int(11) NOT NULL DEFAULT 0,
+  `user_id` int(11) NOT NULL DEFAULT 0,
+  `num_records` int(11) NOT NULL DEFAULT 0,
+  `num_errors` int(11) NOT NULL DEFAULT 0,
+  `num_users` int(11) NOT NULL DEFAULT 0,
+  `num_subs` int(11) NOT NULL DEFAULT 0,
+  `num_lapsed` int(11) NOT NULL DEFAULT 0,
+  `ip_address` varchar(255) DEFAULT '',
+  `error_report` mediumtext DEFAULT NULL,
+  `new_users` mediumtext DEFAULT NULL,
+  `new_subs` mediumtext DEFAULT NULL,
+  `lapsed_members` mediumtext DEFAULT NULL,
+  `input_file` varchar(255) NOT NULL,
+  `created` datetime NOT NULL DEFAULT current_timestamp(),
+  `created_by` int(11) DEFAULT 0,
+  `modified` datetime DEFAULT NULL,
+  `modified_by` int(11) DEFAULT 0,
+  `checked_out_time` datetime DEFAULT NULL,
+  `checked_out` int(11) DEFAULT NULL,
+  `state` tinyint(1) DEFAULT 1,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 --
 -- Table structure for table `#__ra_organisations`
 --

@@ -1,11 +1,6 @@
 <?php
 
 /**
- * @version    CVS: 1.0.0
- * @package    Com_Ra_members
- * @author     Charlie Bigley <charlie@bigley.me.uk>
- * @copyright  2026 Charlie Bigley
- * @license    GNU General Public License version 2 or later; see LICENSE.txt
  * 22/06/26 CB delete function
  */
 

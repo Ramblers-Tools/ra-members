@@ -79,7 +79,6 @@ $reports = [
     'Affiliate Members' => 'administrator/index.php?option=com_ra_members&task=reports.generalReport&mode=A',
     'Lapsed members' => 'administrator/index.php?option=com_ra_members&task=reports.lapsedMembers',
     'Members with duplicate names' => 'administrator/index.php?option=com_ra_members&task=reports.duplicateNames',
-    'Members joined Ramblers, by month' => 'administrator/index.php?option=com_ra_members&task=reports.analyseJoinedRamblers',
     'Members joined Area, by month' => 'administrator/index.php?option=com_ra_members&task=reports.analyseJoinedArea',
     'Members joined Group, by month' => 'administrator/index.php?option=com_ra_members&task=reports.analyseJoinedGroup',
     'Members lapsing, by month' => 'administrator/index.php?option=com_ra_members&task=reports.analyseLapsing',
@@ -92,6 +91,10 @@ $joint_reports = [
     'All Joint members' => 'administrator/index.php?option=com_ra_members&task=reports.jointMembers&scope=G',
     'Shared Email' => 'administrator/index.php?option=com_ra_members&task=reports.sharedEmail&scope=G',
     'Shared Address' => 'administrator/index.php?option=com_ra_members&task=reports.sharedAddress&scope=G',
+];
+$address_labels = [
+    'Address labels - members without email' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&mode=1',
+    'Address labels - all members' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&mode=2',
 ];
 
 $systemReports = array();
@@ -126,17 +129,18 @@ if ($code !== 'N') {
 <form action="<?php echo JRoute::_('index.php?option=com_ra_tools&view=reports'); ?>" method="post" name="reportsForm" id="reportsForm">
     <div id="j-main-container" class="span10">
         <div class="clearfix"> </div>
-        <?php
-        echo '<div class="dashboard-grid">';
-        echo $this->toolsHelper->buildDashboardReportBlock('System reports', $systemReports);
-        if ($show_area_reports == '1') {
-            echo $this->toolsHelper->buildDashboardReportBlock('Area reports', $areaReports);
-        }
-        echo $this->toolsHelper->buildDashboardReportBlock($group_report_heading, $groupReports);
-        echo $this->toolsHelper->buildDashboardReportBlock('Joint members', $joint_reports);
-        echo '</div>';
-        echo $this->toolsHelper->backButton($back);
-        ?>
+<?php
+echo '<div class="dashboard-grid">';
+echo $this->toolsHelper->buildDashboardReportBlock('System reports', $systemReports);
+if ($show_area_reports == '1') {
+    echo $this->toolsHelper->buildDashboardReportBlock('Area reports', $areaReports);
+}
+echo $this->toolsHelper->buildDashboardReportBlock($group_report_heading, $groupReports);
+echo $this->toolsHelper->buildDashboardReportBlock('Joint members', $joint_reports);
+echo $this->toolsHelper->buildDashboardReportBlock('Address labels', $address_labels);
+echo '</div>';
+echo $this->toolsHelper->backButton($back);
+?>
         <input type="hidden" name="task" value="" />
         <?php echo HTMLHelper::_('form.token'); ?>
     </div>

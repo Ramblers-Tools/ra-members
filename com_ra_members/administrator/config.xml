@@ -5,8 +5,8 @@
             name="enable_json_feed"
             type="radio"
             layout="joomla.form.field.radio.switcher"
-            label="COM_RA_MEMBERS_CONFIG_ENABLE_JSON_FEED_LABEL"
-            description="COM_RA_MEMBERS_CONFIG_ENABLE_JSON_FEED_DESC"
+            label="Enable JSON feed"
+            description="Enable or disable the Corporate JSON feed "
             default="1"
             filter="integer"
             >

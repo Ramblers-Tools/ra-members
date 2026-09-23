@@ -24,12 +24,12 @@ $wa->registerAndUseStyle('com_ra_tools', 'ramblers.css');
 
 $listOrder = $this->state->get('list.ordering');
 $listDirn = $this->state->get('list.direction');
-$target = 'administrator/index.php?option=com_ra_mailman&task=import_reports.';
+$target = 'administrator/index.php?option=com_ra_members&task=import_reports.';
 $target_info = 'administrator/index.php?option=com_ra_mailman&task=subscription.showDetails&id=';
 $objHelper = new ToolsHelper;
 ?>
 
-<form action="<?php echo Route::_('index.php?option=com_ra_mailman&view=import_reports'); ?>" method="post"
+<form action="<?php echo Route::_('index.php?option=com_ra_members&view=import_reports'); ?>" method="post"
       name="adminForm" id="adminForm">
     <div class="row">
         <div class="col-md-12">

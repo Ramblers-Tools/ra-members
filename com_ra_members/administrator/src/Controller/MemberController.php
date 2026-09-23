@@ -2,10 +2,7 @@
 
 /**
  * @version    CVS: 1.0.0
- * @package    Com_Ra_members
- * @author     Charlie Bigley <charlie@bigley.me.uk>
- * @copyright  2026 Charlie Bigley
- * @license    GNU General Public License version 2 or later; see LICENSE.txt
+ * 20/08/26 created by component-creator
  * 22/06/26 CB delete function
  * 15/07/25 CB add function cancel
  */
@@ -38,12 +35,10 @@ class RoleController extends FormController {
     protected $view_list = 'roles';
 
     public function __construct(array $config = array(), \Joomla\CMS\MVC\Factory\MVCFactoryInterface $factory = null) {
-//        die('Mail_lstController');
         parent::__construct($config, $factory);
         $this->db = Factory::getDbo();
         $this->toolsHelper = new ToolsHelper;
         $this->app = Factory::getApplication();
-//       $this->mailHelper = new Mailhelper;
         $wa = Factory::getApplication()->getDocument()->getWebAssetManager();
         $wa->registerAndUseStyle('ramblers', 'com_ra_tools/ramblers.css');
     }
@@ -51,8 +46,8 @@ class RoleController extends FormController {
     public function cancel($key = null, $urlVar = null) {
         $target = 'index.php?option=com_ra_members&';
         // User state will have been set by the calling program
-        $member_id = $this->app->getUserState('com_ra_members.member.member_id','0');
-        $callback = $this->app->getUserState('com_ra_members.member.callback','');
+        $member_id = $this->app->getUserState('com_ra_members.member.member_id', '0');
+        $callback = $this->app->getUserState('com_ra_members.member.callback', '');
         $this->app->enqueueMessage('Role controller: callback= ' . $callback, 'Info"');
         if ($callback == 'member') {
             $target .= 'view=member&id=' . $member_id;
@@ -61,8 +56,8 @@ class RoleController extends FormController {
         } else {
             $target .= 'view=roles';
         }
-        $this->app->setUserState('com_ra_members.member.member_id',null);
-        $this->app->setUserState('com_ra_members.member.callback',null);
+        $this->app->setUserState('com_ra_members.member.member_id', null);
+        $this->app->setUserState('com_ra_members.member.callback', null);
         $this->setRedirect($target);
     }
 
@@ -89,7 +84,7 @@ class RoleController extends FormController {
         }
 
 // Redirect the user back to the list view
-    $this->setRedirect('index.php?option=com_ra_members&view=' . $callback);
+        $this->setRedirect('index.php?option=com_ra_members&view=' . $callback);
     }
 
 }

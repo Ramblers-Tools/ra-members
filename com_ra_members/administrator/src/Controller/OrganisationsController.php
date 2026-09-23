@@ -65,12 +65,6 @@ class OrganisationsController extends AdminController {
         $target = 'administrator/index.php?option=com_ra_members&view=members';
         echo $this->toolsHelper->buildButton($target, 'List Members');
         echo $this->toolsHelper->backButton($this->back);
-//        if ($result === true) {
-//            $this->setMessage(Text::_('COM_RA_MAILMAN_LOAD_SUCCESS'), 'success');
-//        } else {
-//            $this->setMessage(Text::_('COM_RA_MAILMAN_LOAD_FAILURE'), 'error');
-//        }
-//        $this->setRedirect($this->back);
     }
 
     public function purgeTestdata() {

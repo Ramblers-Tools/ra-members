@@ -129,10 +129,10 @@ class Import_reportsModel extends ListModel {
         $query->select('a.num_errors,a.num_users,a.num_subs, a.num_lapsed');
         $query->select('l.name AS `list`, l.id as list_id');
         $query->select('l.group_code AS `group`');
-        $query->select('m.name AS `Method`');
+        $query->select("COALESCE(m.name, 'RA Members Insight') AS `Method`");
         $query->select("p.preferred_name");
         $query->from('`#__ra_import_reports` AS a');
-        $query->innerJoin($this->_db->qn('#__ra_mail_methods') . ' AS `m` ON m.id = a.method_id');
+        $query->leftJoin($this->_db->qn('#__ra_mail_methods') . ' AS `m` ON m.id = a.method_id');
         $query->leftJoin($this->_db->qn('#__ra_profiles') . ' AS `p` ON p.id = a.user_id');
         $query->leftJoin($this->_db->qn('#__ra_mail_lists') . ' AS `l` ON l.id = a.list_id');
 

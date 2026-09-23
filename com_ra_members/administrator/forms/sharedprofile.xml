@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+    <fieldset>
+        <field
+            name="user_id"
+            type="user"
+            label="Existing Joomla user"
+            description="Select the existing Joomla user whose email address is shared"
+            required="true" />
+        <field
+            name="member_id"
+            type="sql"
+            label="Second Member profile"
+            description="Select the unlinked profile to attach to the same Joomla user"
+            query="SELECT member_id, CONCAT(COALESCE(preferred_name, ''), ' (', home_group, ', profile ', member_id, ')') AS title FROM #__ra_profiles WHERE (id IS NULL OR id = 0) ORDER BY preferred_name, home_group"
+            key_field="member_id"
+            value_field="title"
+            required="true" />
+        <field
+            name="combined_name"
+            type="text"
+            label="Combined Joomla user name"
+            description="The display name to use for the shared Joomla user"
+            required="true"
+            filter="string" />
+    </fieldset>
+</form>

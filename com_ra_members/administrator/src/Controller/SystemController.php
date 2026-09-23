@@ -18,7 +18,9 @@ use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Helper\ContentHelper;
 use Joomla\CMS\HTML\HTMLHelper;
+use Joomla\CMS\Form\Form;
 use Joomla\CMS\Language\Text;
+use Joomla\CMS\Log\Log;
 use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\CMS\MVC\Controller\FormController;
@@ -28,7 +30,6 @@ use Joomla\Input\Input;
 use Ramblers\Component\Ra_tools\Site\Helpers\SchemaHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 
-//use Ramblers\Component\Ra_tools\Site\Helpers\UserHelper;
 
 class SystemController extends FormController {
 
@@ -311,6 +312,94 @@ class SystemController extends FormController {
         echo '<p>The #__ra_profiles schema is owned by com_ra_tools. Reinstall the revised RA Tools package to update it.</p>';
         $back = 'administrator/index.php?option=com_ra_tools&view=dashboard';
         echo $this->toolsHelper->backButton($back);
+    }
+
+    /**
+     * Explicitly attach an unlinked Member profile to an existing Joomla user.
+     *
+     * This is the only supported path for the exceptional case where two
+     * Member profiles intentionally share one Joomla user/email address.
+     * It is deliberately restricted to Super Users and never runs implicitly
+     * while displaying a Member record.
+     */
+    public function attachSharedProfile(): void {
+        if (!$this->toolsHelper->isSuperuser()) {
+            throw new \RuntimeException('Only a Super User may attach a shared-email profile.', 403);
+        }
+
+        $memberId = $this->app->input->getInt('member_id', 0);
+        $userId = $this->app->input->getInt('user_id', 0);
+
+        if ($memberId < 1 || $userId < 1) {
+            $form = Form::getInstance(
+                    'com_ra_members.sharedprofile',
+                    JPATH_ADMINISTRATOR . '/components/com_ra_members/forms/sharedprofile.xml'
+            );
+            echo '<h1>Attach shared-email profiles</h1>';
+            echo '<p>Select the existing Joomla user, the second unlinked Member profile, and the combined name to use.</p>';
+            echo '<form method="post" action="index.php?option=com_ra_members&task=system.attachSharedProfile">';
+            echo $form->renderField('user_id');
+            echo $form->renderField('member_id');
+            echo $form->renderField('combined_name');
+            echo '<button type="submit" class="btn btn-warning">Attach shared profile</button>';
+            echo HTMLHelper::_('form.token');
+            echo '</form>';
+            return;
+        }
+
+        $this->checkToken();
+
+        $profileQuery = $this->db->getQuery(true)
+                ->select($this->db->quoteName(['id', 'preferred_name']))
+                ->from($this->db->quoteName('#__ra_profiles'))
+                ->where($this->db->quoteName('member_id') . ' = :memberId')
+                ->bind(':memberId', $memberId);
+        $this->db->setQuery($profileQuery);
+        $profile = $this->db->loadObject();
+
+        if (!$profile) {
+            throw new \RuntimeException('The Member profile could not be found.');
+        }
+        if (!empty($profile->id)) {
+            throw new \RuntimeException('The Member profile is already linked to a Joomla user.');
+        }
+
+        $combinedName = trim((string) $this->app->input->get('combined_name', '', 'string'));
+        if ($combinedName === '') {
+            throw new \InvalidArgumentException('A combined Joomla user name is required.');
+        }
+
+        $userQuery = $this->db->getQuery(true)
+                ->select($this->db->quoteName(['id', 'email']))
+                ->from($this->db->quoteName('#__users'))
+                ->where($this->db->quoteName('id') . ' = :userId')
+                ->bind(':userId', $userId);
+        $this->db->setQuery($userQuery);
+        $joomlaUser = $this->db->loadObject();
+
+        if (!$joomlaUser) {
+            throw new \RuntimeException('The Joomla user could not be found.');
+        }
+
+        $userFactory = $this->app->getContainer()->get(\Joomla\CMS\User\UserFactoryInterface::class);
+        $user = $userFactory->loadUserById($userId);
+        if (!$user->bind(['name' => $combinedName]) || !$user->save()) {
+            throw new \RuntimeException('Unable to update the Joomla user name: ' . $user->getError());
+        }
+
+        $update = $this->db->getQuery(true)
+                ->update($this->db->quoteName('#__ra_profiles'))
+                ->set($this->db->quoteName('id') . ' = :userId')
+                ->where($this->db->quoteName('member_id') . ' = :memberId')
+                ->bind(':userId', $userId)
+                ->bind(':memberId', $memberId);
+        $this->db->setQuery($update)->execute();
+
+        $message = 'Member profile ' . $memberId . ' was explicitly attached to Joomla user '
+                . $userId . ' (' . $joomlaUser->email . ') for shared-email use.';
+        Log::add($message, Log::NOTICE, 'ra_members');
+        $this->app->enqueueMessage($message, 'message');
+        $this->setRedirect('index.php?option=com_ra_members&view=member&member_id=' . $memberId);
     }
 
 }

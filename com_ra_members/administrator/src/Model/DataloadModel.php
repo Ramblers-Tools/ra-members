@@ -179,6 +179,8 @@ class DataloadModel extends AdminModel {
             return false;
         }
 
+        $reportId = $this->createImportReport($data, $user);
+
         $handle = fopen($path, 'rb');
 
         if ($handle === false) {
@@ -222,6 +224,7 @@ class DataloadModel extends AdminModel {
             }
         } catch (\Throwable $exception) {
             fclose($handle);
+            $this->updateImportReport($reportId, 0, 1, [], ['File validation failed: ' . $exception->getMessage()], null, $preview);
             $app->enqueueMessage($exception->getMessage(), 'error');
             return false;
         }
@@ -233,6 +236,7 @@ class DataloadModel extends AdminModel {
         }
 
         if ($rows === []) {
+            $this->updateImportReport($reportId, count($mappingErrors), count($mappingErrors), [], $mappingErrors, null, $preview);
             $app->enqueueMessage('No valid Insight records were found.', 'error');
             return false;
         }
@@ -244,10 +248,117 @@ class DataloadModel extends AdminModel {
             $app->enqueueMessage($message, $result ? 'info' : 'warning');
         }
 
+        $allErrors = $mappingErrors;
+        if ($loader->count_errors > 0) {
+            $allErrors = array_merge($allErrors, $loader->messages);
+        }
+        $this->updateImportReport(
+                $reportId,
+                count($rows) + count($mappingErrors),
+                count($mappingErrors) + (int) $loader->count_errors,
+                $loader,
+                $allErrors,
+                $result,
+                $preview
+        );
+
         $action = $preview ? 'Previewed' : 'Processed';
         $app->enqueueMessage($action . ' ' . count($rows) . ' valid Insight record(s).', $result ? 'success' : 'warning');
 
         return $result && $mappingErrors === [];
+    }
+
+    private function createImportReport(array $data, $user): int {
+        try {
+            $db = Factory::getDbo();
+            $query = $db->getQuery(true)
+                    ->insert($db->quoteName('#__ra_import_reports'))
+                    ->columns($db->quoteName([
+                        'date_phase1', 'method_id', 'list_id', 'user_id', 'input_file',
+                        'ip_address', 'created_by', 'state'
+                    ]))
+                    ->values(implode(',', [
+                        $db->quote(Factory::getDate()->toSql()),
+                        '3',
+                        '0',
+                        (int) ($user->id ?? 0),
+                        $db->quote((string) ($data['file'] ?? $data['name'] ?? 'Insight CSV')),
+                        $db->quote((string) ($_SERVER['REMOTE_ADDR'] ?? '')),
+                        (int) ($user->id ?? 0),
+                        '1',
+                    ]));
+            $db->setQuery($query)->execute();
+
+            return (int) $db->insertid();
+        } catch (\Throwable $exception) {
+            Factory::getApplication()->enqueueMessage(
+                    'Unable to create the Insight import report: ' . $exception->getMessage(),
+                    'warning'
+            );
+
+            return 0;
+        }
+    }
+
+    private function updateImportReport(
+            int $reportId,
+            int $records,
+            int $errors,
+            $loader,
+            array $messages,
+            ?bool $result,
+            bool $preview
+    ): void {
+        if ($reportId < 1) {
+            return;
+        }
+
+        try {
+            $db = Factory::getDbo();
+            $summary = [];
+            if (is_object($loader)) {
+                $summary[] = 'New profiles: ' . (int) $loader->count_new_profiles;
+                $summary[] = 'New users: ' . (int) $loader->count_new_users;
+                $summary[] = 'Updated profiles: ' . (int) $loader->count_updated;
+                $summary[] = 'Not updated: ' . (int) $loader->count_not_updated;
+                $summary[] = 'Potentially lapsed profiles: ' . (int) $loader->count_lapsed;
+            }
+            $reportText = implode('<br>', array_merge($summary, $messages));
+            $lapsedText = '';
+            if (is_object($loader) && $loader->lapsed_members !== []) {
+                $lapsedText = implode('<br>', array_map(
+                        static function (array $member): string {
+                            return 'Profile ' . (int) $member['member_id']
+                                    . ', membership ' . htmlspecialchars($member['membershipNo'], ENT_QUOTES, 'UTF-8')
+                                    . ', ' . htmlspecialchars($member['preferred_name'], ENT_QUOTES, 'UTF-8')
+                                    . ', ' . htmlspecialchars($member['email'], ENT_QUOTES, 'UTF-8');
+                        },
+                        $loader->lapsed_members
+                ));
+            }
+            $query = $db->getQuery(true)
+                    ->update($db->quoteName('#__ra_import_reports'))
+                    ->set($db->quoteName('num_records') . ' = ' . (int) $records)
+                    ->set($db->quoteName('num_errors') . ' = ' . (int) $errors)
+                    ->set($db->quoteName('num_users') . ' = ' . (int) (is_object($loader) ? $loader->count_new_users : 0))
+                    ->set($db->quoteName('num_lapsed') . ' = ' . (int) (is_object($loader) ? $loader->count_lapsed : 0))
+                    ->set($db->quoteName('error_report') . ' = ' . $db->quote($reportText))
+                    ->set($db->quoteName('lapsed_members') . ' = ' . $db->quote($lapsedText))
+                    ->set($db->quoteName('modified') . ' = ' . $db->quote(Factory::getDate()->toSql()))
+                    ->set($db->quoteName('modified_by') . ' = ' . (int) Factory::getApplication()->getIdentity()->id)
+                    ->where($db->quoteName('id') . ' = ' . $reportId);
+
+            if (!$preview) {
+                $query->set($db->quoteName('date_completed') . ' = ' . $db->quote(Factory::getDate()->toSql()));
+            }
+
+            $db->setQuery($query)->execute();
+        } catch (\Throwable $exception) {
+            Factory::getApplication()->enqueueMessage(
+                    'Unable to update the Insight import report: ' . $exception->getMessage(),
+                    'warning'
+            );
+        }
     }
 
     public function validate($form, $data, $group = true) {

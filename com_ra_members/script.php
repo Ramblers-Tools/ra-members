@@ -2,12 +2,12 @@
 
 /*
  * Installation script
- * 29/04/25 CB getDbVersion and getVersion
  * 14/06/25 CB add link to dashboard
- * 31/07/25 CB this->version_required
  * 09/08/25 CB ra_mail_lists / emails_outstanding
  * 06/04/26 CB add mail_list/description
  * 08/07/26 CB new fields for organisations
+ * 30/08/26 CB consolidate installed component version lookup
+ * 06/09/26 CB correct deleteFolder and invokation of buildButton
  */
 
 \defined('_JEXEC') or die;
@@ -19,23 +19,22 @@ use Joomla\CMS\Filesystem\Folder;
 use Joomla\CMS\Installer\InstallerAdapter;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
-use Joomla\CMS\Object\CMSObject;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Database\DatabaseInterface;
+use Joomla\Database\ParameterType;
 
 class Com_Ra_membersInstallerScript {
+
+    private const MINIMUM_MAILMAN_VERSION = '5.0.18';
+    private const MINIMUM_TOOLS_VERSION = '4.0.13';
 
     private $component;
     private $minimumJoomlaVersion = '4.0';
     private $minimumPHPVersion = JOOMLA_MINIMUM_PHP;
     private $reconfigure_message;
-    private $required_version;
 
-    private function fail(string $message): bool {
-        Factory::getApplication()->enqueueMessage($message, 'error');
-        Log::add($message, Log::ERROR, 'jerror');
-
-        return false;
+    private function message(string $message): void {
+        Factory::getApplication()->enqueueMessage($message, 'message');
     }
 
     function buildButton($url, $text, $newWindow = 0, $colour = '') {
@@ -106,13 +105,35 @@ class Com_Ra_membersInstallerScript {
         return $this->getValue($sql);
     }
 
+    private function checkMinimumComponentVersion(string $component, string $requiredVersion): bool {
+        try {
+            $installedVersion = $this->getInstalledComponentVersion($component);
+        } catch (\RuntimeException $exception) {
+            Log::add($exception->getMessage(), Log::ERROR, 'jerror');
+            return $this->fail('RA Members could not read the installed version of ' . $component . '.');
+        }
+
+        if ($installedVersion !== null && version_compare($installedVersion, $requiredVersion, 'ge')) {
+            $this->message('Version ' . $requiredVersion . ' of ' . $component
+                    . ' required; version ' . $installedVersion . ' found.');
+            return true;
+        }
+
+        return $this->fail('RA Members requires ' . $component . ' version ' . $requiredVersion
+                        . ' or later; found ' . ($installedVersion ?: 'no readable version') . '.');
+    }
+
     function checkTools() {
         echo 'Checking version of com_ra_tools<br>';
         if (ComponentHelper::isEnabled('com_ra_tools', true)) {
-            $tools_versions = $this->getVersions('com_ra_tools');
-            echo '<p>com_ra_tools is currently at version ' . $tools_versions->component;
-            echo ', database version ' . $tools_versions->db_version . '</p>';
-            if (version_compare($tools_versions->component, '5.0.2', '>')) {
+            try {
+                $toolsVersion = $this->getInstalledComponentVersion('com_ra_tools');
+            } catch (\RuntimeException $exception) {
+                return $this->fail($exception->getMessage());
+            }
+
+            echo '<p>com_ra_tools is currently at version ' . ($toolsVersion ?? 'not recorded') . '</p>';
+            if ($toolsVersion !== null && version_compare($toolsVersion, '5.0.2', '>')) {
                 echo 'Greater than 5.0.2, OK<br>';
                 return true;
             } else {
@@ -183,9 +204,9 @@ class Com_Ra_membersInstallerScript {
             echo 'Folder ' . $folder . ' found,';
             Folder::delete($folder);
             if (file_exists($folder)) {
-                echo ' deleted<br>';
-            } else {
                 echo ' but unable to delete<br>';
+            } else {
+                echo ' deleted<br>';
             }
         } else {
             echo 'Unable to delete ' . $folder . ': folder not found<br>';
@@ -218,98 +239,52 @@ class Com_Ra_membersInstallerScript {
         return $db->execute();
     }
 
-    public function getDatabaseVersion($component = 'com_ra_members') {
-// Get the extension ID
-        $db = JFactory::getDbo();
-        $eid = $this->getExtensionId($component);
+    private function fail(string $message): bool {
+        Factory::getApplication()->enqueueMessage($message, 'error');
+        Log::add($message, Log::ERROR, 'jerror');
 
-        if ($eid != null) {
-// Get the schema version
-            $query = $db->getQuery(true);
-            $query->select('manifest_cache')
-                    ->from('#__extensions')
-                    ->where('extension_id = ' . $db->quote($eid));
-            $db->setQuery($query);
-            $json = $db->loadResult();
-            $values = json_decode($json->manifest_cache);
-            return $version;
-        }
-        return null;
+        return false;
     }
 
-    public function getDbVersion($component = 'com_ra_members') {
-        $sql = 'SELECT s.version_id ';
-        $sql .= 'FROM #__extensions as e ';
-        $sql .= 'LEFT JOIN #__schemas AS s ON s.extension_id = e.extension_id ';
-        $sql .= 'WHERE e.element="' . $component . '"';
-        return $this->getValue($sql);
-    }
+    /**
+     * Return the installed manifest version for a component.
+     */
+    private function getInstalledComponentVersion(string $component = 'com_ra_members'): ?string {
+        $db = Factory::getContainer()->get(DatabaseInterface::class);
+        $query = $db->getQuery(true);
+        $extensionType = 'component';
 
-    public function getVersion($component = 'com_ra_members') {
-        // This returns the version as display by System / Manage extensions
-        $sql = 'SELECT manifest_cache ';
-        $sql .= 'FROM  #__extensions  ';
-        $sql .= 'WHERE element="' . $component . '"';
-        $json = $this->getValue($sql);
+        $query->select($db->quoteName('e.manifest_cache'))
+                ->from($db->quoteName('#__extensions', 'e'))
+                ->where($db->quoteName('e.element') . ' = :component')
+                ->where($db->quoteName('e.type') . ' = :extensionType')
+                ->bind(':component', $component, ParameterType::STRING)
+                ->bind(':extensionType', $extensionType, ParameterType::STRING);
 
-        if (empty($json)) {
+        $db->setQuery($query);
+        $manifestCache = $db->loadResult();
+
+        if ($manifestCache === null) {
             return null;
         }
 
-        $data = json_decode($json);
-
-        return (is_object($data) && isset($data->version)) ? (string) $data->version : null;
-    }
-
-    /**
-     *     returns details of the component version and the database version
-     *
-     * @return  CMSObject
-     *
-     */
-    public function getVersions($component = 'com_ra_members') {
-        // Returns an object with two values:
-        //  ->component
-        //  ->db_version
-        $versions = new CMSObject;
-        $sql = 'SELECT e.manifest_cache, s.version_id AS db_version ';
-        $sql .= 'FROM #__extensions as e ';
-        $sql .= 'LEFT JOIN #__schemas AS s ON s.extension_id = e.extension_id ';
-        $sql .= 'WHERE element="' . $component . '"';
-
-        $db = Factory::getContainer()->get(DatabaseInterface::class);
-        $query = $db->getQuery(true);
-        $db->setQuery($sql);
-        $db->execute();
-        $item = $db->loadObject();
-        if ($item == false) {
-            $this->fail('Installer could not find version information for ' . $component . '.');
-            return false;
-        } else {
-            $values = json_decode($item->manifest_cache);
-            $versions->component = $values->version;
-            $versions->db_version = $item->db_version;
+        try {
+            $manifest = json_decode((string) $manifestCache, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException(
+                            'Installer could not decode version information for ' . $component . '.',
+                            0,
+                            $exception
+            );
         }
 
-        return $versions;
-    }
+        if (!is_array($manifest)) {
+            throw new \RuntimeException('Installer found invalid version information for ' . $component . '.');
+        }
 
-    /**
-     * Loads the ID of the extension from the database
-     *
-     * @return mixed
-     */
-    public function getExtensionId($component = 'com_ra_members') {
-        $db = JFactory::getDbo();
+        $installedVersion = $manifest['version'] ?? null;
 
-        $query = $db->getQuery(true);
-        $query->select('extension_id')
-                ->from('#__extensions')
-                ->where($db->qn('element') . ' = ' . $db->q($component) . ' AND type=' . $db->q('component'));
-        $db->setQuery($query);
-        $eid = $db->loadResult();
-//        echo $db->replacePrefix($query) . '<br>';
-        return $eid;
+        return is_scalar($installedVersion) ? (string) $installedVersion : null;
     }
 
     private function getValue($sql) {
@@ -320,7 +295,7 @@ class Com_Ra_membersInstallerScript {
     }
 
     public function install($parent): bool {
-        echo '<p>Installing RA members (com_ra_members) ' . '</p>';
+        $this->message('Installing RA Members (com_ra_members).');
         if (!empty($this->minimumPHPVersion) && version_compare(PHP_VERSION, $this->minimumPHPVersion, '<')) {
             return $this->fail(Text::sprintf('JLIB_INSTALLER_MINIMUM_PHP', $this->minimumPHPVersion));
         }
@@ -329,14 +304,8 @@ class Com_Ra_membersInstallerScript {
         }
 
         if (ComponentHelper::isEnabled('com_ra_tools', true)) {
-            $tools_version = $this->getVersion('com_ra_tools');
-            $tools_required = '4.0.13';
-            echo '<p>Version ' . $tools_required . ' of com_ra_tools required<br>';
-            if (version_compare($tools_version, $tools_required, 'ge')) {
-                echo '<p>Version ' . $tools_version . ' of com_ra_tools found</p>';
-            } else {
-                return $this->fail('RA Members requires com_ra_tools version ' . $tools_required
-                                . ' or later; found ' . ($tools_version ?: 'no readable version') . '.');
+            if (!$this->checkMinimumComponentVersion('com_ra_tools', self::MINIMUM_TOOLS_VERSION)) {
+                return false;
             }
         } else {
             return $this->fail('RA Members requires the enabled component com_ra_tools.');
@@ -346,12 +315,8 @@ class Com_Ra_membersInstallerScript {
             return $this->fail('RA Members requires the enabled component com_ra_mailman.');
         }
 
-        $mailman_required = '5.0.18';
-        $mailman_version = $this->getVersion('com_ra_mailman');
-
-        if (!version_compare($mailman_version, $mailman_required, 'ge')) {
-            return $this->fail('RA Members requires com_ra_mailman version ' . $mailman_required
-                            . ' or later; found ' . ($mailman_version ?: 'no readable version') . '.');
+        if (!$this->checkMinimumComponentVersion('com_ra_mailman', self::MINIMUM_MAILMAN_VERSION)) {
+            return false;
         }
 
         return true;
@@ -365,9 +330,18 @@ class Com_Ra_membersInstallerScript {
 
     public function uninstall($parent): bool {
         echo '<p>Uninstalling RA Members (com_ra_members)<br>';
-        $versions = $this->getVersions();
-        echo '<p>Version ' . $versions->component;
-        echo ', database version ' . $versions->db_version . '</p>';
+        try {
+            $installedVersion = $this->getInstalledComponentVersion();
+        } catch (\RuntimeException $exception) {
+            Log::add($exception->getMessage(), Log::WARNING, 'jerror');
+            $installedVersion = null;
+        }
+
+        if ($installedVersion === null) {
+            echo '<p>Version information not available</p>';
+        } else {
+            echo '<p>Version ' . $installedVersion . '</p>';
+        }
         return true;
     }
 
@@ -380,34 +354,44 @@ class Com_Ra_membersInstallerScript {
     }
 
     public function postflight($type, $parent) {
-        'Postflight RA Members (com_ra_members)<br>';
+        $this->message('Postflight RA Members (com_ra_members).');
         if ($type == 'uninstall') {
             return true;
         }
-//        echo '<p>com_ra_members is now at ' . $this->getVersion() . '</p>';
 //        if ($reconfigure_message == true) {
 //            $this->red('Please review and update the configuration settings for com_ra_members.');
 //        }
-        echo '<b>Useful links</b><br>';
-        echo $this->buildButton('index.php?option=com_ra_tools&view=dashboard', 'Dashboard', 'granite') . '<br>';
-        echo $this->buildButton('index.php?option=com_config&view=component&component=com_ra_members', 'Configure');
+        $message = '<b>Useful links</b><br>'
+                . $this->buildButton('index.php?option=com_ra_tools&view=dashboard', 'Dashboard', false, 'granite') . '<br>'
+                . $this->buildButton('index.php?option=com_config&view=component&component=com_ra_members', 'Configure');
+        echo $message;
         return true;
     }
 
     public function preflight($type, $parent): bool {
-        echo 'Preflight RA members (type=' . $type . ')<br>';
+        $this->message('Preflight RA Members (type=' . $type . ').');
         if ($type == 'uninstall') {
             return true;
         }
         if ($type == 'install') {
-            echo 'No action required by preflight on install<br>';
+            $this->message('No action required by preflight on install.');
             return true;
         }
 
         if (ComponentHelper::isEnabled('com_ra_members', true)) {
-            $this->current_version = $this->getVersion();
-            echo 'com_ra_members already present, version=' . $this->getVersion();
-            echo ', DB version=' . $this->getDbVersion() . '<br>';
+            try {
+                $currentVersion = $this->getInstalledComponentVersion();
+            } catch (\RuntimeException $exception) {
+                return $this->fail($exception->getMessage());
+            }
+
+            if ($currentVersion === null) {
+                return $this->fail('Installer could not find readable version information for com_ra_members.');
+            }
+
+            $this->message('com_ra_members already present, version=' . $currentVersion . '.');
+        } else {
+            return $this->fail('Installer could not find the existing com_ra_members installation.');
         }
         if (!ComponentHelper::isEnabled('com_ra_tools', true)) {
             return $this->fail('RA Members requires the enabled component com_ra_tools.');
@@ -416,34 +400,24 @@ class Com_Ra_membersInstallerScript {
             return $this->fail('RA Members requires the enabled component com_ra_mailman.');
         }
 
-        $mailman_required = '5.0.18';
-        $mailman_version = $this->getVersion('com_ra_mailman');
-
-        if (!version_compare($mailman_version, $mailman_required, 'ge')) {
-            return $this->fail('RA Members requires com_ra_mailman version ' . $mailman_required
-                            . ' or later; found ' . ($mailman_version ?: 'no readable version') . '.');
+        if (!$this->checkMinimumComponentVersion('com_ra_mailman', self::MINIMUM_MAILMAN_VERSION)) {
+            return false;
         }
 
-        $tools_required = '4.0.13';
-        $tools_version = $this->getVersion('com_ra_tools');
-        echo '<p>Version ' . $tools_required . ' of com_ra_tools required<br>';
-        if (version_compare($tools_version, $tools_required, 'ge')) {
-            echo 'Version ' . $tools_version . ' of com_ra_tools found</p>';
-        } else {
-            return $this->fail('RA Members requires com_ra_tools version ' . $tools_required
-                            . ' or later; found ' . ($tools_version ?: 'no readable version') . '.');
+        if (!$this->checkMinimumComponentVersion('com_ra_tools', self::MINIMUM_TOOLS_VERSION)) {
+            return false;
         }
 
-        $this->version_required = '1.1.0';
+        $versionRequired = '1.1.0';
 
-        if (version_compare($this->current_version, $this->version_required, 'ge')) {
-            echo 'Current version is ' . $this->current_version . ', no additional processing required</p>';
+        if (version_compare($currentVersion, $versionRequired, 'ge')) {
+            $this->message('Current version is ' . $currentVersion . '; no additional processing required.');
             return true;
         } else {
-            echo '<p>Version is currently ' . $this->current_version . ', ';
-            echo 'Requires version >= ' . $this->version_required . '</p>';
+            $this->message('Version is currently ' . $currentVersion
+                    . '; version ' . $versionRequired . ' or later is required to skip upgrade processing.');
         }
-        if (version_compare($this->current_version, '1.1.0', 'le')) {
+        if (version_compare($currentVersion, '1.1.0', 'le')) {
             $this->checkColumn('ra_organisations', 'mailman_active', 'A', 'VARCHAR(1) DEFAULT "N" AFTER longitude; ');
             /*
               $this->checkColumn('ra_mail_shots', 'record_type', 'A', 'VARCHAR(1) DEFAULT "M" AFTER id; ');
@@ -452,7 +426,7 @@ class Com_Ra_membersInstallerScript {
 
              */
         }
-        if (version_compare($this->current_version, '1.2', 'le')) {
+        if (version_compare($currentVersion, '1.2', 'le')) {
             $this->checkColumn('ra_organisations', 'notes', 'A', 'MEDIUMTEXT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NULL AFTER details; ');
             $this->checkColumn('ra_organisations', 'uses_ra_tools', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER mailman_active; ');
             $this->checkColumn('ra_organisations', 'uses_ra_mailman', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER uses_ra_tools; ');

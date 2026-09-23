@@ -174,6 +174,9 @@ class MembersModel extends ListModel {
         $query->from('`#__ra_profiles` AS a');
         $query->select('u.email');
         $query->leftJoin('#__users AS u ON u.id=a.id');
+        // Placeholder profiles are reconciliation records, not live members.
+        $query->where('a.state = 1');
+        $query->where("a.home_group <> 'ZZ99'");
         if ($group !== 'N') {
             $query->where($db->quoteName('a.home_group') . ' = ' . $db->quote($group));
         }

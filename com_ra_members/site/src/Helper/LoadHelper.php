@@ -58,6 +58,10 @@ class LoadHelper {
     public $count_legacy_profiles_reused = 0;
     public $count_not_updated = 0;
     public $count_updated = 0;
+    public $count_records = 0;
+    public $count_errors = 0;
+    public $count_lapsed = 0;
+    public $lapsed_members = [];
     public $errors;
     public $messages = array();
 
@@ -92,9 +96,9 @@ class LoadHelper {
 
     private function buildRoleRows($member, $memberId) {
         return $this->supporterMapper->mapVolunteerRoles(
-                $this->normaliseMember($member),
-                (int) $memberId,
-                $this->currentGroupCode
+                        $this->normaliseMember($member),
+                        (int) $memberId,
+                        $this->currentGroupCode
         );
     }
 
@@ -152,8 +156,7 @@ class LoadHelper {
         }
     }
 
-    private function failLoad(string $message): bool
-    {
+    private function failLoad(string $message): bool {
         $this->messages[] = $message;
         $this->logMessage($message, '3');
         return false;
@@ -373,9 +376,7 @@ class LoadHelper {
         if (is_object($matchedUser) && !empty($matchedUser->id)) {
             $sharedProfiles = $this->getProfilesByUserId((int) $matchedUser->id, (int) ($profileRow->member_id ?? 0));
 
-            if (!empty($sharedProfiles)
-                    && $this->normaliseScalar($matchedUser->name ?? null) !== $this->normaliseScalar($desiredName)
-                    && !$isDuplicateFeedEmail) {
+            if (!empty($sharedProfiles) && $this->normaliseScalar($matchedUser->name ?? null) !== $this->normaliseScalar($desiredName) && !$isDuplicateFeedEmail) {
                 $this->notifyUserConflict($member, 'matched shared Joomla user would need a name change', $matchedUser, $sharedProfiles);
                 return array((int) $matchedUser->id, false, true);
             }
@@ -505,6 +506,7 @@ class LoadHelper {
     }
 
     private function getCurrentUserId() {
+        //TODO move this function to ToolsHelper and use it in other places where we need the current user id
         $user = $this->app->getSession()->get('user');
 
         if (is_object($user) && isset($user->id)) {
@@ -532,65 +534,63 @@ class LoadHelper {
         return SupporterApiConfig::fromRow($this->db->loadObject(), $apiSiteId);
     }
 
-public function getJson(int $apiSiteId, string $code)
-{
-    try {
-        $site = $this->getApiSiteConfig($apiSiteId);
-    } catch (\Throwable $exception) {
-        $this->logMessage('API site config error: ' . $exception->getMessage(), '3');
-        return false;
+    public function getJson(int $apiSiteId, string $code) {
+        try {
+            $site = $this->getApiSiteConfig($apiSiteId);
+        } catch (\Throwable $exception) {
+            $this->logMessage('API site config error: ' . $exception->getMessage(), '3');
+            return false;
+        }
+
+        $separator = strpos($site->getUrl(), '?') === false ? '?' : '&';
+        $url = $site->getUrl() . $separator . http_build_query([
+                    'api_key' => $site->getToken(),
+                    'team_code' => $code,
+                        ], '', '&', PHP_QUERY_RFC3986);
+        if (JDEBUG) {
+            $this->messages[] = 'Requesting supporters for API site ID ' . $site->getId()
+                    . ' and team ' . $code;
+        }
+
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+            ],
+        ]);
+
+        $responseData = curl_exec($curl);
+        $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($curl);
+        curl_close($curl);
+
+        if ($responseData === false) {
+            $this->logMessage('Supporter feed cURL error: ' . $curlError, '3');
+            return false;
+        }
+
+        if ($httpCode !== 200) {
+            $snippet = substr(trim((string) $responseData), 0, 300);
+            $this->logMessage('Supporter feed HTTP ' . $httpCode . ' response: ' . $snippet, '3');
+            return false;
+        }
+
+        $decoded = json_decode($responseData, true);
+        if (!is_array($decoded)) {
+            $this->logMessage('Supporter feed JSON decode failed: ' . json_last_error_msg(), '3');
+            return false;
+        }
+
+        return $decoded;
     }
-
-    $separator = strpos($site->getUrl(), '?') === false ? '?' : '&';
-    $url = $site->getUrl() . $separator . http_build_query([
-        'api_key'   => $site->getToken(),
-        'team_code' => $code,
-    ], '', '&', PHP_QUERY_RFC3986);
-
-    if (JDEBUG) {
-        $this->messages[] = 'Requesting supporters for API site ID ' . $site->getId()
-                . ' and team ' . $code;
-    }
-
-    $curl = curl_init();
-    curl_setopt_array($curl, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 10,
-        CURLOPT_CONNECTTIMEOUT => 30,
-        CURLOPT_TIMEOUT        => 120,
-        CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST  => 'GET',
-        CURLOPT_HTTPHEADER     => [
-            'Accept: application/json',
-        ],
-    ]);
-
-    $responseData = curl_exec($curl);
-    $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($curl);
-    curl_close($curl);
-
-    if ($responseData === false) {
-        $this->logMessage('Supporter feed cURL error: ' . $curlError, '3');
-        return false;
-    }
-
-    if ($httpCode !== 200) {
-        $snippet = substr(trim((string) $responseData), 0, 300);
-        $this->logMessage('Supporter feed HTTP ' . $httpCode . ' response: ' . $snippet, '3');
-        return false;
-    }
-
-    $decoded = json_decode($responseData, true);
-    if (!is_array($decoded)) {
-        $this->logMessage('Supporter feed JSON decode failed: ' . json_last_error_msg(), '3');
-        return false;
-    }
-
-    return $decoded;
-}
 
     private function getProfileByMemberRef($memberRef) {
         if ($memberRef === null) {
@@ -693,7 +693,7 @@ public function getJson(int $apiSiteId, string $code)
 
         return ($value === '') ? null : $value;
     }
-    
+
     private function mapSupporterToProfileData($member) {
         $member = $this->normaliseMember($member);
         $data = $this->supporterMapper->mapProfile(
@@ -798,9 +798,7 @@ public function getJson(int $apiSiteId, string $code)
         // home_group currently duplicates the source groupCode. Keep legacy
         // profiles usable until that redundancy is removed by ensuring a blank
         // value is populated by either import path.
-        $existingHomeGroup = is_object($existingProfile)
-                ? $this->normaliseScalar($existingProfile->home_group ?? null)
-                : null;
+        $existingHomeGroup = is_object($existingProfile) ? $this->normaliseScalar($existingProfile->home_group ?? null) : null;
 
         if (array_key_exists('home_group', $columns) && $existingHomeGroup === null) {
             $incomingHomeGroup = $this->normaliseScalar($member['home_group'] ?? null);
@@ -814,8 +812,7 @@ public function getJson(int $apiSiteId, string $code)
             }
         }
 
-        if (array_key_exists('preferred_name', $columns)
-                && (!is_object($existingProfile) || empty($existingProfile->member_id))) {
+        if (array_key_exists('preferred_name', $columns) && (!is_object($existingProfile) || empty($existingProfile->member_id))) {
             $data['preferred_name'] = $this->buildPreferredName($member);
         }
 
@@ -854,7 +851,7 @@ public function getJson(int $apiSiteId, string $code)
                 ->delete($this->db->quoteName('#__ra_roles'))
                 ->where($this->db->quoteName('member_id') . ' = ' . (int) $memberId)
                 ->where($this->db->quoteName('organisation_code') . ' = '
-                        . $this->db->quote($this->currentGroupCode));
+                . $this->db->quote($this->currentGroupCode));
 
         $this->db->setQuery($deleteQuery)->execute();
 
@@ -867,9 +864,7 @@ public function getJson(int $apiSiteId, string $code)
 
             foreach ($storedRole as $columnName => $value) {
                 $columnNames[] = $this->db->quoteName($columnName);
-                $values[] = $columnName === 'member_id'
-                        ? (int) $value
-                        : $this->quoteValue($value);
+                $values[] = $columnName === 'member_id' ? (int) $value : $this->quoteValue($value);
             }
 
             $query = $this->db->getQuery(true)
@@ -989,11 +984,15 @@ public function getJson(int $apiSiteId, string $code)
         $this->count_new_users = 0;
         $this->count_updated = 0;
         $this->count_not_updated = 0;
+        $this->count_records = count($members);
+        $this->count_errors = 0;
+        $this->count_lapsed = 0;
+        $this->lapsed_members = [];
         $this->identifyDuplicateFeedEmails($members);
 
         $membershipCounts = array_count_values(array_map(
-            static fn ($member) => (string) ($member['membershipNo'] ?? ''),
-            $members
+                        static fn($member) => (string) ($member['membershipNo'] ?? ''),
+                        $members
         ));
 
         if ($mode === MemberFeedMode::INSIGHT_PRIMARY && !$preview) {
@@ -1022,6 +1021,7 @@ public function getJson(int $apiSiteId, string $code)
 
             if ($membershipNo === '' || ($membershipCounts[$membershipNo] ?? 0) > 1) {
                 $this->messages[] = $rowLabel . 'duplicate or missing membership number; record ignored.';
+                $this->count_errors++;
                 $ok = false;
                 continue;
             }
@@ -1030,6 +1030,7 @@ public function getJson(int $apiSiteId, string $code)
 
             if (count($profiles) > 1) {
                 $this->messages[] = $rowLabel . 'membership number ' . $membershipNo . ' matches multiple profiles; record ignored.';
+                $this->count_errors++;
                 $ok = false;
                 continue;
             }
@@ -1038,6 +1039,7 @@ public function getJson(int $apiSiteId, string $code)
 
             if ($mode === MemberFeedMode::JSON_ENRICHMENT && $profileRow === null) {
                 $this->messages[] = $rowLabel . 'membership number ' . $membershipNo . ' is not present from the JSON feed; record ignored.';
+                $this->count_errors++;
                 $ok = false;
                 continue;
             }
@@ -1049,11 +1051,61 @@ public function getJson(int $apiSiteId, string $code)
             }
 
             if (!$this->syncInsightMember($member, $profileRow, $mode)) {
+                $this->count_errors++;
                 $ok = false;
             }
         }
 
+        // A profile with an Insight import marker which is absent from the
+        // current file is potentially lapsed.  Record it for review only;
+        // no profile, user or subscription is changed here.
+        $importedAt = (string) ($members[0]['insightImportedAt'] ?? '');
+        if ($importedAt !== '') {
+            $this->identifyLapsedInsightProfiles($membershipCounts);
+        }
+
         return $ok;
+    }
+
+    private function identifyLapsedInsightProfiles(array $membershipCounts): void {
+        $membershipNumbers = array_keys($membershipCounts);
+
+        if ($membershipNumbers === []) {
+            return;
+        }
+
+        try {
+            $quotedNumbers = array_map(
+                    fn($value) => $this->db->quote((string) $value),
+                    $membershipNumbers
+            );
+            $query = $this->db->getQuery(true)
+                    ->select('p.member_id, p.membershipNo, p.preferred_name, u.email')
+                    ->from($this->db->quoteName('#__ra_profiles', 'p'))
+                    ->leftJoin($this->db->quoteName('#__users', 'u') . ' ON u.id = p.id')
+                    ->where('p.membershipNo IS NOT NULL')
+                    ->where('p.insightImportedAt IS NOT NULL')
+                    ->where('p.membershipNo NOT IN (' . implode(',', $quotedNumbers) . ')')
+                    ->order('p.membershipNo ASC');
+            $rows = $this->db->setQuery($query)->loadObjectList();
+
+            foreach ($rows as $row) {
+                $this->lapsed_members[] = [
+                    'member_id' => (int) $row->member_id,
+                    'membershipNo' => (string) $row->membershipNo,
+                    'preferred_name' => (string) ($row->preferred_name ?? ''),
+                    'email' => (string) ($row->email ?? ''),
+                ];
+            }
+            $this->count_lapsed = count($this->lapsed_members);
+
+            if ($this->count_lapsed > 0) {
+                $this->messages[] = $this->count_lapsed . ' previously imported profile(s) were not present in this file and require review.';
+            }
+        } catch (\Throwable $exception) {
+            $this->messages[] = 'Unable to identify lapsed Insight profiles: ' . $exception->getMessage();
+            $this->logMessage('Unable to identify lapsed Insight profiles: ' . $exception->getMessage(), '3');
+        }
     }
 
     private function syncInsightMember(array $member, $profileRow, string $mode): bool {
@@ -1130,9 +1182,14 @@ public function getJson(int $apiSiteId, string $code)
             $this->messages = array('The JSON supporter feed is disabled in RA Members configuration.');
             return false;
         }
+        $sql = 'SELECT title from #__ra_api_sites WHERE id=' . $apiSiteId;
+        $site = $this->toolsHelper->getItem($sql);
 
-        $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_tools')->get('default_group', '')));
-
+        if (strlen($site->title) == 4) {
+            $code = $site->title;
+        } else {
+            $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_tools')->get('default_group', '')));
+        }
         if (!preg_match('/^[A-Z0-9]{4}$/', $code)) {
             $this->messages = array('com_ra_tools default_group must contain four letters or digits.');
             return false;
@@ -1179,7 +1236,7 @@ public function getJson(int $apiSiteId, string $code)
      *   Store a log entry
      */
     public function logMessage($text, $record_type = '3') {
-
+        $this->messages[] = $text;
         $query = $this->db->getQuery(true);
 
         $query->insert('#__ra_logfile')
@@ -1192,7 +1249,7 @@ public function getJson(int $apiSiteId, string $code)
         $result = $this->db->setQuery($query)->execute();
     }
 
-   public function processMembers($members) {
+    public function processMembers($members) {
         $count = 0;
         $this->count_new_profiles = 0;
         $this->count_new_users = 0;

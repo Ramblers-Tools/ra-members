@@ -33,7 +33,7 @@ class Import_reportsController extends AdminController {
     protected $view_item = 'dataload';
 // Ensure control returns to Dashboard, not import_reports
     protected $view_list = 'dashboard';
-    protected $back = 'administrator/index.php?option=com_ra_mailman&view=import_reports';
+    protected $back = 'administrator/index.php?option=com_ra_members&view=import_reports';
     protected $db;
     protected $app;
     protected $toolsHelper;
@@ -77,13 +77,13 @@ class Import_reportsController extends AdminController {
         $sql .= 'r.num_records, r.num_errors, r.num_users, r.num_subs, r.num_lapsed, ';
         $sql .= 'l.name, m.name AS `Method` ';
         $sql .= 'FROM `#__ra_import_reports` AS r ';
-        $sql .= 'INNER JOIN #__ra_mail_lists as l ON l.id = r.list_id ';
-        $sql .= 'INNER JOIN #__ra_mail_methods AS `m` ON m.id = r.method_id ';
+        $sql .= 'LEFT JOIN #__ra_mail_lists as l ON l.id = r.list_id ';
+        $sql .= 'LEFT JOIN #__ra_mail_methods AS `m` ON m.id = r.method_id ';
         $sql .= 'WHERE r.id= ' . $id;
 //        $target = 'administrator/index.php?option = com_users&view = users ';
         $item = $this->toolsHelper->getItem($sql);
         echo '<b>Report</b>: ' . $id . '<br>';
-        echo '<b>List</b>: ' . $item->name . '<br>';
+        echo '<b>List</b>: ' . ($item->name ?: 'RA Members Insight import') . '<br>';
         if (is_null($item->date_completed)) {
             echo '<div style="color:red"> <b>Date 1</b>: ' . HTMLHelper::_('date', $item->date_phase1, 'H:i d/m/y') . ' Validation only!</div>';
         } else {
@@ -91,7 +91,7 @@ class Import_reportsController extends AdminController {
             echo ', <b>Date completed</b>: ' . HTMLHelper::_('date', $item->date_completed, 'H:i:s d/m/y');
             echo '<br>';
         }
-        echo '<b>Method</b>: ' . $item->Method . '<br>';
+        echo '<b>Method</b>: ' . ($item->Method ?: 'RA Members Insight') . '<br>';
         echo '<b>File</b>: ' . $item->input_file . '<br>';
         echo '<b>Number of records</b>: ' . $item->num_records . '<br>';
         echo '<b>Number of errors</b>: ' . $item->num_errors . '<br>';

@@ -149,9 +149,14 @@ class MemberModel extends AdminModel
 			{
 				$db = $this->getDatabase();
 				$query = $db->getQuery(true)
-					->select('*')
-					->from($db->quoteName('#__ra_profiles'))
-					->where($db->quoteName('member_id') . ' = :member_id')
+					->select($db->quoteName('p') . '.*')
+					->select($db->quoteName('u.email', 'email'))
+					->from($db->quoteName('#__ra_profiles', 'p'))
+					->leftJoin(
+						$db->quoteName('#__users', 'u')
+						. ' ON ' . $db->quoteName('u.id') . ' = ' . $db->quoteName('p.id')
+					)
+					->where($db->quoteName('p.member_id') . ' = :member_id')
 					->bind(':member_id', $memberId);
 
 				$db->setQuery($query);
