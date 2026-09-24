@@ -13,6 +13,7 @@
  * 18/04/26 CB created
  * 05/06/26 CB include expired members
  * 21/06/26 CB add lookupMember
+ * 24/09/26 CB add SharedUserNameResolver
  */
 
 namespace Ramblers\Component\Ra_members\Site\Helper;
@@ -25,7 +26,6 @@ use Ramblers\Component\Ra_mailman\Site\Helpers\Mailhelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\JsonHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\UserHelper;
-use Ramblers\Component\Ra_tools\Site\Service\SharedUserNameResolver;
 use Ramblers\Component\Ra_members\Site\Service\SupporterApiConfig;
 use Ramblers\Component\Ra_members\Site\Service\SupporterMapper;
 use Ramblers\Component\Ra_members\Site\Service\MemberFeedMode;
@@ -42,7 +42,6 @@ class LoadHelper {
     protected $profileColumns;
     protected $auditColumns;
     protected $roleColumns;
-    protected $sharedUserNameResolver;
     protected $supporterMapper;
     protected $userColumns;
     protected $duplicateFeedMembers = array();
@@ -70,7 +69,6 @@ class LoadHelper {
         $this->db = Factory::getDbo();
         $this->jsonHelper = new JsonHelper;
         $this->mailHelper = new MailHelper;
-        $this->sharedUserNameResolver = new SharedUserNameResolver();
         $this->supporterMapper = new SupporterMapper();
         $this->toolsHelper = new ToolsHelper;
         $this->comments = array();
@@ -106,12 +104,22 @@ class LoadHelper {
         $email = $this->normaliseScalar($member['email'] ?? null);
 
         if ($email !== null && $this->isDuplicateFeedEmail($email)) {
-            $sharedName = $this->sharedUserNameResolver->resolve(
-                    $this->duplicateFeedMembers[strtolower($email)]
-            );
+            $names = [];
 
-            if ($sharedName !== null) {
-                return $sharedName;
+            foreach ($this->duplicateFeedMembers[strtolower($email)] as $sharedMember) {
+                $sharedMember = $this->normaliseMember($sharedMember);
+                $memberRef = (string) ($sharedMember['memberRef'] ?? '');
+                $fullName = trim((string) ($sharedMember['firstName'] ?? '') . ' '
+                        . (string) ($sharedMember['lastName'] ?? ''));
+
+                if ($fullName !== '') {
+                    $names[$memberRef . ':' . $fullName] = $fullName;
+                }
+            }
+
+            if ($names !== []) {
+                ksort($names, SORT_NATURAL | SORT_FLAG_CASE);
+                return implode(' and ', array_values($names));
             }
         }
 
@@ -795,6 +803,20 @@ class LoadHelper {
         $columns = $this->getProfileColumns();
         $data = array_intersect_key($member, $columns);
 
+        foreach ([
+            'membershipJoinDate',
+            'membershipExpiry',
+            'areaJoinedDate',
+            'teamRelationshipFrom',
+            'emailConsentLastUpdated',
+            'postConsentLastUpdated',
+            'phoneConsentLastUpdated',
+        ] as $dateField) {
+            if (array_key_exists($dateField, $data) && $data[$dateField] !== null && $data[$dateField] !== '') {
+                $data[$dateField] = $this->normaliseInsightDate($data[$dateField], $dateField);
+            }
+        }
+
         // home_group currently duplicates the source groupCode. Keep legacy
         // profiles usable until that redundancy is removed by ensuring a blank
         // value is populated by either import path.
@@ -825,6 +847,31 @@ class LoadHelper {
         }
 
         return $data;
+    }
+
+    private function normaliseInsightDate($value, string $fieldName): string {
+        $value = trim((string) $value);
+
+        foreach ([
+            '!Y-m-d',
+            '!d/m/Y',
+            '!j/n/Y',
+            '!d-m-Y',
+            '!j-n-Y',
+            '!d/m/Y H:i:s',
+            '!j/n/Y H:i:s',
+            '!d/m/Y H.i.s',
+            '!j/n/Y H.i.s',
+        ] as $format) {
+            $date = \DateTimeImmutable::createFromFormat($format, $value);
+            $errors = \DateTimeImmutable::getLastErrors();
+
+            if ($date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        throw new \InvalidArgumentException($fieldName . ': invalid date "' . $value . '".');
     }
 
     private function createProfileAudit($objectId, $recordType, $fieldName = '', $oldValue = null, $newValue = null) {

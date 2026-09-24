@@ -1,12 +1,6 @@
 <?php
 
 /**
- * @version     1.1.7
- * @package     com_ra_members
- * @copyright   Copyright (C) 2020. All rights reserved.
- * @license     GNU General Public License version 2 or later; see LICENSE.txt
- * @author      Charlie <webmaster@bigley.me.uk> - https://www.stokeandnewcastleramblers.org.uk
- *
  * 09/06/26 CB created
  * 15/06/26 CB add new fields in ra_profiles, check ra_logfile / sub_system
  * 15/06/26 CB add new field welcome_sent_date to ra_profiles
@@ -27,6 +21,7 @@ use Joomla\CMS\MVC\Controller\FormController;
 use Joomla\CMS\Application\CMSApplication;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\Input\Input;
+use Ramblers\Component\Ra_members\Site\Helper\LoadHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\SchemaHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 
@@ -256,36 +251,27 @@ class SystemController extends FormController {
     }
 
     function test() {
+        $loadUsers = new LoadHelper;
         $toolsHelper = new ToolsHelper;
-        $mailHelper = new MailHelper;
+//        $mailHelper = new MailHelper;
         $helper = New SchemaHelper;
-        $helper->checkColumn('ra_logfile', 'sub_system', 'U', 'VARCHAR(10) NOT NULL; ');
+//        $helper->checkColumn('ra_logfile', 'sub_system', 'U', 'VARCHAR(10) NOT NULL; ');
+
+//        return; 
+        $apiSiteId = (int) $this->app->input->getInt('id',12);
+
+        if ($apiSiteId < 1) {
+            echo 'api-site-id must be a positive integer.';
+        } else {        
+            echo 'Loading users for api-site-id=' . $apiSiteId . '<br>';
+            $result = $loadUsers->loadMembers($apiSiteId);
+            foreach ($loadUsers->messages as $message) {
+                echo $message . '<br>';
+            }
+        }
         $target = 'administrator/index.php?option=com_ra_tools&view=dashboard';
         echo $toolsHelper->backButton($target);
-//        return;
-
-        $date = Factory::getDate();
-        echo $date . '<br>';
-
-        $sql = 'SELECT id, group_code, name, emails_outstanding ';
-        $sql .= 'FROM #__ra_mail_lists ';
-        $sql .= 'WHERE emails_outstanding>0 ORDER BY group_code, name';
-        $rows = $toolsHelper->getRows($sql);
-        $toolsHelper->showQuery($sql);
-        $id = 0;
-        foreach ($rows as $row) {
-            if ($id == 0) {
-                $id = $row->id;
-                $name = $row->group_code . '/' . $row->name;
-            }
-            $message .= 'Group ' . $row->group_code . ', List ' . $row->name;
-            $message .= ',' . $row->emails_outstanding . ' emails to be sent<br>';
         }
-        if ($id > 0) {
-            $message .= 'Sending emails for ' . $name . '<br>';
-            echo $message;
-        }
-    }
 
     public function UpdateMembership() {
         //       $id = $this->objApp->input->getInt('id', '0');

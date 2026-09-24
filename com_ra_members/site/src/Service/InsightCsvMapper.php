@@ -1,5 +1,7 @@
 <?php
-
+/*
+24/09/26 CB Identify field names in error messages
+*/
 namespace Ramblers\Component\Ra_members\Site\Service;
 
 defined('_JEXEC') or die;
@@ -54,13 +56,13 @@ final class InsightCsvMapper {
         'teamRelationshipFrom',
         'emailPermissionLastUpdated',
         'postPermissionLastUpdated',
-        'telephonePermissionLastUpdated',
+        'phoneConsentLastUpdated',
     ];
     private const BOOLEAN_FIELDS = [
         'volunteer',
         'emailConsent',
         'postConsent',
-        'phonConsent',
+        'phoneConsent',
         'noWalkProgram',
     ];
 
@@ -119,7 +121,7 @@ final class InsightCsvMapper {
                 $value = strtolower($value);
 
                 if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
-                    throw new \InvalidArgumentException('Invalid Email Address.');
+                    throw new \InvalidArgumentException('Email Address: invalid email address.');
                 }
             }
 
@@ -127,11 +129,11 @@ final class InsightCsvMapper {
         }
 
         if ($data['membershipNo'] === null) {
-            throw new \InvalidArgumentException('Mem No. is required.');
+            throw new \InvalidArgumentException('Mem No.: value is required.');
         }
 
         if ($data['groupCode'] === null || !preg_match('/^[A-Z0-9]{4}$/', strtoupper($data['groupCode']))) {
-            throw new \InvalidArgumentException('Group Code must contain four letters or digits.');
+            throw new \InvalidArgumentException('Group Code: value must contain four letters or digits.');
         }
 
         $data['groupCode'] = strtoupper($data['groupCode']);
