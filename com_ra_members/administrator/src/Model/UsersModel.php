@@ -1,13 +1,9 @@
 <?php
 
 /**
- * @version    1.1.8
- * @package    com_ra_members
- * @author     Charlie Bigley <charlie@bigley.me.uk>
- * @copyright  2025 Charlie Bigley
- * @license    GNU General Public License version 2 or later; see LICENSE.txt
  * 21/04/25 CB remove Ra_toolsHelper
- *  * 05/07/26 CB copied from com_ra_tools
+ * 05/07/26 CB copied from com_ra_tools
+ * 28/09/26 CB added lastVisitDate
  */
 
 namespace Ramblers\Component\Ra_members\Administrator\Model;
@@ -47,6 +43,7 @@ class UsersModel extends ListModel {
                 'email', 'a.email',
                 'a.block',
                 'a.requireReset',
+                'a.lastVisitDate',
                 'preferred_name', 'p.preferred_name',
                 'home_group', 'p.home_group',
             );

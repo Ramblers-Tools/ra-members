@@ -86,6 +86,58 @@ class ReportsController extends AdminController {
         }
     }
 
+    public function chooseGroup(): void {
+        $this->checkToken();
+
+        if (!$this->toolsHelper->isSuperuser()) {
+            throw new \RuntimeException('Only Super Users may change the report group.', 403);
+        }
+
+        $data = $this->app->input->post->get('jform', [], 'array');
+        // AreaGroup fields may be rendered by Joomla with either the normal
+        // jform[group_code] name or a direct group_code name. Accept both so
+        // the modal selection cannot be lost during form submission.
+        $postedGroup = $data['group_code'] ?? $this->app->input->post->getString('group_code', '');
+        $group = strtoupper(trim((string) $postedGroup));
+        $returnUrl = (string) ($data['return_url'] ?? 'index.php?option=com_ra_members&view=reports');
+
+        if ($group !== 'N') {
+            if (!preg_match('/^[A-Z0-9]{4}$/', $group)) {
+                throw new \InvalidArgumentException('Select a valid four-character group code or All groups.');
+            }
+
+            $exists = $this->toolsHelper->getValue(
+                    'SELECT code FROM #__ra_groups WHERE code=' . $this->db->quote($group) . ' LIMIT 1'
+            );
+            if (!$exists) {
+                throw new \InvalidArgumentException('The selected group does not exist.');
+            }
+        }
+
+        $this->app->setUserState('com_ra_members.reports.group', $group);
+        $this->app->enqueueMessage($group === 'N' ? 'Reports now include all groups.' : 'Reports now use group ' . $group . '.', 'message');
+        $this->setRedirect(Route::_($this->safeReportReturnUrl($returnUrl), false));
+    }
+
+    public function clearGroup(): void {
+        // The reports view exposes this as a one-click GET link, so validate
+        // the token from the query string rather than looking only in POST.
+        $this->checkToken('get');
+
+        if (!$this->toolsHelper->isSuperuser()) {
+            throw new \RuntimeException('Only Super Users may change the report group.', 403);
+        }
+
+        $this->app->setUserState('com_ra_members.reports.group', '');
+        $this->app->enqueueMessage('The report group override has been cleared.', 'message');
+        $returnUrl = $this->app->input->getString('return_url', 'index.php?option=com_ra_members&view=reports');
+        $this->setRedirect(Route::_($this->safeReportReturnUrl($returnUrl), false));
+    }
+
+    private function safeReportReturnUrl(string $url): string {
+        return (str_starts_with($url, 'index.php?option=com_ra_members&view=reports') || str_starts_with($url, 'index.php?option=com_ra_members&view=members')) ? $url : 'index.php?option=com_ra_members&view=reports';
+    }
+
     public function addressLabels() {
         $mode = $this->app->input->getInt('mode', 1);
 
@@ -294,15 +346,12 @@ class ReportsController extends AdminController {
 
                 $table->add_item($row->preferred_name);
                 $table->add_item($row->email);
-                $table->add_item(HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M y'));
+                $table->add_item(HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M Y'));
                 $table->generate_line();
             }
         }
 
-        $table->generate_table();
-
-        $count = is_array($rows) ? count($rows) : 0;
-        echo $count . ' records found<br>';
+        $table->generate_table('Y');
         echo $this->toolsHelper->backButton($this->back . '&scope=' . $this->scope);
     }
 
@@ -394,8 +443,9 @@ class ReportsController extends AdminController {
             $title = 'Affiliate Report';
             $criterion = 'teamStatus="Affiliate" ';
         } elseif ($mode == 'V') {
-            $title = 'Volunteer Report';
-            $criterion = 'teamStatus="volunteer"';
+            $title = 'Volunteer Report (Insight Volunteers or JSON teamStatus)';
+            $criterion = '(teamStatus="Volunteer"';
+            $criterion .= ' OR volunteer="1")';
         } else {
             echo $this->toolsHelper->buildDashboardReportBlock('System reports', $systemReports);
             return;
@@ -403,19 +453,20 @@ class ReportsController extends AdminController {
         ToolBarHelper::title($title);
         echo $this->breadcrumbs;
         echo '<h4>Scope ' . $this->subheading . '</h4>';
-        $sql = 'SELECT p.home_group, p.preferred_name, p.memberType, p.membershipStatus, p.membershipNo, ';
-        $sql .= 'p.teamStatus, p.affiliateMemberPrimaryGroup, p.teamRelationshipFrom ';
+        $sql = 'SELECT p.home_group, p.preferred_name, p.teamStatus, p.membershipStatus, p.membershipNo, ';
+        $sql .= 'p.teamStatus, p.volunteer, p.affiliateMemberPrimaryGroup, p.teamRelationshipFrom ';
         $sql .= 'FROM #__ra_profiles AS p ';
         $sql .= 'WHERE ' . $criterion;
         $sql .= $this->buildCriterion('AND', 'p.home_group');
-        $sql .= 'ORDER BY p.home_group, p.preferred_name, p.membershipNo';
+        $sql .= 'ORDER BY p.home_group, p.preferred_name, p.membershipNo'; //
+        echo "$sql<br>";
         $table = new ToolsTable();
         if ($this->scope == 'G') {
             $heading = '';
         } else {
             $heading = 'Group,';
         }
-        $heading .= 'Preferred_name, Membership No,Type,Status,teamStatus,Affiliate Group, Joined Group';
+        $heading .= 'Preferred_name, Membership No,Team Status,Volunteer,Affiliate Group, Joined Group';
         $table->add_header($heading);
 //       echo $sql . '<br>';
         $rows = $this->toolsHelper->getRows($sql);
@@ -425,11 +476,10 @@ class ReportsController extends AdminController {
             }
             $table->add_item($row->preferred_name);
             $table->add_item($row->membershipNo);
-            $table->add_item($row->memberType);
-            $table->add_item($row->membershipStatus);
             $table->add_item($row->teamStatus);
+            $table->add_item($row->volunteer);
             $table->add_item($row->affiliateMemberPrimaryGroup);
-            $table->add_item($row->teamRelationshipFrom ? HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M y') : '');
+            $table->add_item($row->teamRelationshipFrom ? HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M Y') : '');
             $table->generate_line();
         }
         $table->generate_table();
@@ -543,7 +593,7 @@ class ReportsController extends AdminController {
                 $table->add_item($row->preferred_name);
                 $table->add_item($row->email);
                 $table->add_item((int) $row->role_count);
-                $table->add_item($row->teamRelationshipFrom ? HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M y') : '');
+                $table->add_item($row->teamRelationshipFrom ? HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M Y') : '');
                 $table->add_item((int) $row->days_lapsed);
                 $table->generate_line();
             }
@@ -622,13 +672,14 @@ class ReportsController extends AdminController {
         $one = $this->toolsHelper->getValue($sql);
         $table->add_item($one);
 
-        $sql = 'SELECT COUNT(p.id) as cnt FROM #__users AS u  ';
-        $sql .= 'LEFT JOIN #__ra_profiles AS p ON p.id = u.id ';
+        $sql = 'SELECT COUNT(p.id) as cnt FROM #__ra_profiles AS p  ';
+        $sql .= 'LEFT JOIN #__users AS u ON p.id = u.id ';
         $sql .= $this->buildCriterion('WHERE', 'p.home_group');
         $sql .= ' AND u.email IS NULL ';
         $two = $this->toolsHelper->getValue($sql);
         $table->add_item($two);
-        $balance = $tot_users - $one - $two;
+
+        $balance = $tot - $one - $two;
         $table->add_item($balance);
         $table->generate_line();
 
@@ -649,6 +700,8 @@ class ReportsController extends AdminController {
 //        echo $sql . '<br>';
         $two = $this->toolsHelper->getValue($sql);
         $table->add_item($two);
+        $balance = $tot - $one - $two;
+        $table->add_item($balance);
         $table->generate_line();
 
 // Find out which types of member we have, and how many of each
@@ -661,12 +714,12 @@ class ReportsController extends AdminController {
         }
 
         $table->add_item('1 Member / 2 Affiliate');
-        $criterion = $operator . 'memberType="';
+        $criterion = $operator . 'teamStatus="';
         $one = $this->toolsHelper->getValue($sql . $criterion . 'Member' . '"');
         $two = $this->toolsHelper->getValue($sql . $criterion . 'Affiliate' . '"');
         $table->add_item($one);
         $table->add_item($two);
-        $balance = $tot_users - $one - $two;
+        $balance = $tot - $one - $two;
         $table->add_item($balance);
         $table->generate_line();
 
@@ -685,6 +738,7 @@ class ReportsController extends AdminController {
         $criterion = $operator . 'memberTerm="';
         $one = $this->toolsHelper->getValue($sql . $criterion . 'Annual' . '"');
         $two = $this->toolsHelper->getValue($sql . $criterion . 'Life' . '"');
+//        echo $sql . $criterion . 'Annual' . '<br>';
         $table->add_item($one);
         $table->add_item($two);
         $balance = $tot - $one - $two;
@@ -693,13 +747,10 @@ class ReportsController extends AdminController {
 
         $table->add_item('1 Individual / 2 Joint');
         $criterion = $operator . 'memberTerm="';
-        // $criterion = $operator . 'memberType like "';
         $lookup = $sql . $operator . 'memberType like "Individual%"';
-        echo $lookup . '<br>';
         $one = $this->toolsHelper->getValue($lookup);
         $lookup = $sql . $operator . 'memberType like "Joint%"';
-        echo $lookup . '<br>';
-        $one = $this->toolsHelper->getValue($lookup);
+        $two = $this->toolsHelper->getValue($lookup);
         $table->add_item($one);
         $table->add_item($two);
         $balance = $tot - $one - $two;
@@ -707,8 +758,8 @@ class ReportsController extends AdminController {
         $table->generate_line();
 
         $table->add_item('1 Volunteer Yes/ 2 Volunteer No');
-        $one = $this->toolsHelper->getValue($sql . $operator . ' volunteer="Y"');
-        $two = $this->toolsHelper->getValue($sql . $operator . ' volunteer IS NULL');
+        $one = $this->toolsHelper->getValue($sql . $operator . ' volunteer="1"');
+        $two = $this->toolsHelper->getValue($sql . $operator . ' volunteer="0"');
         $table->add_item($one);
         $table->add_item($two);
         $balance = $tot - $one - $two;
@@ -743,8 +794,22 @@ class ReportsController extends AdminController {
         $criterion = $operator . 'nowalkProgramme="YES"';
         $one = $this->toolsHelper->getValue($sql . $criterion);
         echo 'Walk Programme Opt-Out ' . $one . '<br>';
-
+        if (JDEBUG) {
+            $this->histogram('MemberType');
+            $this->histogram('MemberTerm');
+            $this->histogram('teamStatus');
+            $this->histogram('volunteer');
+        }
         echo $this->toolsHelper->backButton($this->back);
+    }
+
+    public function histogram($field) {
+        $sql = 'SELECT COUNT(*), ' . $field . ' FROM #__ra_profiles ';
+        $sql .= $this->buildCriterion('WHERE', 'home_group');
+        $sql .= ' GROUP BY ' . $field;
+        $sql .= ' ORDER BY ' . $field;
+        $this->toolsHelper->showSql($sql);
+        echo '<b>';
     }
 
     public function recentJoiners() {
@@ -775,7 +840,7 @@ class ReportsController extends AdminController {
 //       echo $sql;
         $rows = $this->toolsHelper->getRows($sql);
         foreach ($rows as $row) {
-            $details = is_null($row->teamRelationshipFrom) ? '' : HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M y');
+            $details = is_null($row->teamRelationshipFrom) ? '' : HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M Y');
             $table->add_item($details);
             if ($this->scope == '') {
                 $table->add_item($row->home_group);
@@ -841,11 +906,14 @@ class ReportsController extends AdminController {
             $sql .= 'FROM `#__ra_profiles_audit` AS a ';
             $sql .= 'INNER JOIN `#__ra_profiles` AS p ON p.id = a.object_id ';
             $sql .= $this->buildCriterion('WHERE', 'p.home_group');
+            $sql .= 'AND NOT (field_name="sourceRetrievedAt") ';
             $sql .= 'ORDER BY a.date_amended DESC';
             $headers .= 'Name,Member No,Field,Details,Days ago';
         }
         $table->add_header($headers);
-        //       echo $sql;
+        if (JDEBUG) {
+            echo "$sql<br>";
+        }
         $rows = $this->toolsHelper->getRows($sql);
         foreach ($rows as $row) {
             $table->add_item(HTMLHelper::_('date', $row->date_amended, 'd M y H.i'));
@@ -853,7 +921,6 @@ class ReportsController extends AdminController {
             if ($this->scope == '') {
                 $table->add_item($row->home_group);
             }
-
             $table->add_item($row->preferred_name);
             $table->add_item($row->membershipNo);
             //$table->add_item($row->email);
@@ -862,7 +929,7 @@ class ReportsController extends AdminController {
             $table->add_item($row->days_ago);
             $table->generate_line();
         }
-        $table->generate_table();
+        $table->generate_table('Y');
 
         echo $this->toolsHelper->backButton($this->back);
     }
@@ -876,6 +943,16 @@ class ReportsController extends AdminController {
     }
 
     private function sharedMemberDetails($mode) {
+
+        echo $this->breadcrumbs;
+        echo '<h4>Scope ' . $this->subheading . '</h4>';
+
+        if ($this->scope == '') {
+            $headers = 'Joined,Group,';
+        } else {
+            $headers = 'Joined,';
+        }
+
         if ($mode == 'address') {
             $title = 'Members sharing an address';
             $duplicateCriteria = 'd.postcode IS NOT NULL ';
@@ -889,6 +966,7 @@ class ReportsController extends AdminController {
             $where .= 'AND p.address1 IS NOT NULL ';
             $where .= 'AND TRIM(p.address1) <> "" ';
             $order = 'p.postcode, p.address1, p.home_group, p.preferred_name';
+            $headers .= 'Member No,Name,Address1,Post code,Type,Term,Lapse date,Days ago';
         } else {
             $title = 'Members sharing an email address';
             $duplicateCriteria = 'duplicate_user.email IS NOT NULL ';
@@ -897,23 +975,15 @@ class ReportsController extends AdminController {
             $where = 'WHERE u.email IS NOT NULL ';
             $where .= 'AND TRIM(u.email) <> "" ';
             $order = 'u.email, p.home_group, p.preferred_name';
+            $headers .= 'Member No,Name,Email,Type,Term,Lapse date,Days ago';
         }
-
         ToolBarHelper::title($title);
-        echo $this->breadcrumbs;
-        echo '<h4>Scope ' . $this->subheading . '</h4>';
-
         $table = new ToolsTable();
-        if ($this->scope == '') {
-            $headers = 'Joined,Group,';
-        } else {
-            $headers = 'Joined,';
-        }
-        $headers .= 'Member No,Name,Email,Type,Term,Lapse date,Days ago';
+
         $table->add_header($headers);
 
         $sql = 'SELECT p.teamRelationshipFrom, p.home_group, p.membershipNo, p.preferred_name, ';
-        $sql .= 'u.email, p.memberType, p.memberTerm, p.membershipEndDate, ';
+        $sql .= 'u.email, p.address1, p.postcode,p.memberType, p.memberTerm, p.membershipEndDate, ';
         $sql .= 'DATEDIFF(CURRENT_DATE, p.teamRelationshipFrom) AS days_ago ';
         $sql .= 'FROM #__ra_profiles AS p ';
         $sql .= 'LEFT JOIN #__users AS u ON u.id = p.id ';
@@ -935,14 +1005,19 @@ class ReportsController extends AdminController {
         $rows = $this->toolsHelper->getRows($sql);
         if ($rows !== false) {
             foreach ($rows as $row) {
-                $details = is_null($row->teamRelationshipFrom) ? '' : HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M y');
+                $details = is_null($row->teamRelationshipFrom) ? '' : HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M Y');
                 $table->add_item($details);
                 if ($this->scope == '') {
                     $table->add_item($row->home_group);
                 }
                 $table->add_item($row->membershipNo);
                 $table->add_item($row->preferred_name);
-                $table->add_item($row->email);
+                if ($mode == 'email') {
+                    $table->add_item($row->email);
+                } else {
+                    $table->add_item($row->address1);
+                    $table->add_item($row->postcode);
+                }
                 $table->add_item($row->memberType);
                 $table->add_item($row->memberTerm);
                 $details = is_null($row->membershipEndDate) ? '' : HTMLHelper::_('date', $row->membershipEndDate, 'd M y');
@@ -952,7 +1027,7 @@ class ReportsController extends AdminController {
             }
         }
 
-        $table->generate_table();
+        $table->generate_table('Shared records');
         echo $this->toolsHelper->backButton($this->back);
     }
 
@@ -979,7 +1054,7 @@ class ReportsController extends AdminController {
             $table->add_item($row->home_group);
             $table->add_item($row->membershipNo);
             $table->add_item($row->preferred_name);
-            $table->add_item(HTMLHelper::_('date', $row->areaJoinedDate, 'd M y'));
+            $table->add_item(HTMLHelper::_('date', $row->areaJoinedDate, 'd M Y'));
             $table->add_item(HTMLHelper::_('date', $row->membershipEndDate, 'd M y'));
             $table->add_item($row->memberType);
             $table->add_item($row->memberTerm);
@@ -1011,7 +1086,7 @@ class ReportsController extends AdminController {
             $table->add_item($row->home_group);
             $table->add_item($row->membershipNo);
             $table->add_item($row->preferred_name);
-            $table->add_item(HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M y'));
+            $table->add_item(HTMLHelper::_('date', $row->teamRelationshipFrom, 'd M Y'));
             $table->add_item(HTMLHelper::_('date', $row->membershipEndDate, 'd M y'));
             $table->add_item($row->memberType);
             $table->add_item($row->memberTerm);
@@ -1051,7 +1126,7 @@ class ReportsController extends AdminController {
             $table->add_item($row->home_group);
             $table->add_item($row->membershipNo);
             $table->add_item($row->preferred_name);
-            $table->add_item(HTMLHelper::_('date', $row->membershipJoinDate, 'd M y'));
+            $table->add_item(HTMLHelper::_('date', $row->membershipJoinDate, 'd M Y'));
             $table->add_item(HTMLHelper::_('date', $row->membershipEndDate, 'd M y'));
             $table->add_item($row->memberType);
             $table->add_item($row->memberTerm);

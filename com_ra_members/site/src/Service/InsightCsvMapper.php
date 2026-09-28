@@ -14,10 +14,10 @@ final class InsightCsvMapper {
     private const FIELD_MAP = [
         'Group' => 'groupName',
         'Mem No.' => 'membershipNo',
-        'Member Type' => 'memberType',
+        'Member Type' => 'teamStatus',
         'Member Term' => 'memberTerm',
         'Member Status' => 'membershipStatus',
-        'Type' => 'membershipType',
+        'Type' => 'memberType',
         'Joint With' => 'jointWith',
         'Title' => 'title',
         'Initials' => 'initials',
@@ -121,7 +121,10 @@ final class InsightCsvMapper {
                 $value = strtolower($value);
 
                 if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
-                    throw new \InvalidArgumentException('Email Address: invalid email address.');
+                    $name = trim((string) ($data['firstName'] ?? '') . ' ' . (string) ($data['lastName'] ?? ''));
+                    throw new \InvalidArgumentException(
+                            'Invalid email ' . $value . ' found for ' . ($name !== '' ? $name : 'unknown member')
+                    );
                 }
             }
 
@@ -137,6 +140,9 @@ final class InsightCsvMapper {
         }
 
         $data['groupCode'] = strtoupper($data['groupCode']);
+        if ($data['affiliateMemberPrimaryGroup'] !== null) {
+            $data['affiliateMemberPrimaryGroup'] = substr($data['affiliateMemberPrimaryGroup'], 0, 4);
+        }
         $data['home_group'] = $data['groupCode'];
         $data['insightPayload'] = json_encode(
                 $source,

@@ -13,6 +13,7 @@ namespace Ramblers\Component\Ra_members\Administrator\View\Members;
 // No direct access
 defined('_JEXEC') or die;
 
+use \Joomla\CMS\Factory;
 use \Joomla\CMS\Form\Form;
 use \Joomla\CMS\HTML\Helpers\Sidebar;
 use \Joomla\CMS\Language\Text;
@@ -81,7 +82,7 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
         if ($code == 'N') {
             $title = 'Members';
         } else {
-            $title = 'Members for ' . $this->toolsHelper->lookupGroup($code);
+            $title = 'Members for ' . $code . ' ' . $this->toolsHelper->lookupGroup($code);
         }
         ToolbarHelper::title($title, 'generic');
 //        ToolbarHelper::title(Text::_('COM_RA_MEMBERS_TITLE_MEMBERS'), "generic");
@@ -95,6 +96,19 @@ class HtmlView extends BaseHtmlView implements CurrentUserInterface {
                 ->onclick('return false')
                 ->listCheck(false);
         ToolbarHelper::cancel('members.cancel', 'Return to Dashboard');
+
+        if ($this->toolsHelper->isSuperuser()) {
+            $returnUrl = rawurlencode('index.php?option=com_ra_members&view=members');
+            $url = 'index.php?option=com_ra_members&view=groupselect&return_url=' . $returnUrl;
+            ToolbarHelper::link($url, 'Choose selected group', 'filter');
+
+            if (Factory::getApplication()->getUserState('com_ra_members.reports.group', '') !== '') {
+                $token = Factory::getApplication()->getSession()->getFormToken();
+                $clearUrl = 'index.php?option=com_ra_members&task=reports.clearGroup'
+                    . '&return_url=' . $returnUrl . '&' . $token . '=1';
+                ToolbarHelper::link($clearUrl, 'Clear group override', 'remove');
+            }
+        }
 
         // Set sidebar action
         Sidebar::setAction('index.php?option=com_ra_members&view=members');

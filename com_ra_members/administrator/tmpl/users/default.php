@@ -4,6 +4,7 @@
  * 05/10/25 CB show SuperUsers
  * 05/07/26 CB copied from com_ra_tools
  * 24/08/26 CB correct check for com_ra_events
+ * 28/09/26 CB lastVisitDate
  */
 // No direct access
 defined('_JEXEC') or die;
@@ -64,6 +65,9 @@ $sql_lookup .= 'WHERE map.group_id=8 AND  map.user_id=';
                                 <?php echo HTMLHelper::_('searchtools.sort', 'Email', 'a.email', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
+                                <?php echo HTMLHelper::_('searchtools.sort', 'Last visit', 'a.lastVisitDate', $listDirn, $listOrder); ?>
+                            </th>
+                            <th class='left'>
                                 <?php echo HTMLHelper::_('searchtools.sort', 'Blocked', 'a.block', $listDirn, $listOrder); ?>
                             </th>
                             <th class='left'>
@@ -119,6 +123,7 @@ $sql_lookup .= 'WHERE map.group_id=8 AND  map.user_id=';
                                 }
                                 echo '</td>';
                                 echo '<td>' . $item->email . '</td>';
+                                echo '<td>' . $item->lastvisitDate . '</td>';
                                 echo '<td>' . $item->block . '</td>';
                                 echo '<td>' . $item->requireReset . '</td>';
                                 echo '<td>' . $item->home_group . '</td>';
