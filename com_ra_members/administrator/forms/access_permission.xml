@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form addfieldprefix="Ramblers\Component\Ra_tools\Administrator\Field">
+  <fieldset>
+    <field name="id" type="text" readonly="true" class="readonly" default="0" description="JGLOBAL_FIELD_ID_DESC"/>
+
+    <field name="user" 
+           type="user" 
+           label="User" 
+           description="Preferred_name of the User" />
+    <field
+        name="access_me"
+        type="radio"
+        label="Grant access to Members"
+        default="0"
+    >
+        <option value="0">No</option>
+        <option value="1">Yes</option>
+    </field>   
+    <field
+        name="access_ma"
+        type="radio"
+        label="Grant access to Mailman"
+        default="0"
+    >
+        <option value="0">No</option>
+        <option value="1">Yes</option>
+    </field>   
+  </fieldset>
+</form>

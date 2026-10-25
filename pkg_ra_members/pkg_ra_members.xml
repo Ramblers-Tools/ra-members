@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="package" method="upgrade">
+    <name>pkg_ra_members</name>
+    <packagename>ra_members</packagename>
+    <author>Ramblers Tools</author>
+    <creationDate>25 Oct 2026</creationDate>
+    <copyright>2026 Ramblers Tools</copyright>
+    <license>GNU General Public License version 3 or later; see LICENSE.txt</license>
+    <authorEmail>support@ramblers.tools</authorEmail>
+    <authorUrl>https://ramblers.tools</authorUrl>
+    <version>1.2.0-beta</version>
+    <description>Installs the RA Members component and system plugin for Ramblers groups</description>
+    <changelogurl>https://raw.githubusercontent.com/Ramblers-Tools/ra-members/main/changelog.xml</changelogurl>
+    <scriptfile>script.php</scriptfile>
+    <files folder="packages">
+        <file type="component" id="com_ra_members">com_ra_members.zip</file>
+        <file type="plugin" id="plg_ra_members" group="console">plg_ra_members.zip</file>
+    </files>
+    <updateservers>
+        <server type="extension" name="RA Members Update Server">https://raw.githubusercontent.com/Ramblers-Tools/ra-members/main/updates/pkg_ra_members.xml</server>
+    </updateservers>
+</extension>

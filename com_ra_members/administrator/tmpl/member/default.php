@@ -105,7 +105,6 @@ echo '<h3>Membership</h3>';
 echo 'Member Status: <b>' . $this->item->membershipStatus . '</b><br>';
 echo 'Member Type: <b>' . $this->item->memberType . '</b><br>';
 echo 'Membership Term:<b> ' . $this->item->memberTerm . '</b><br>';
-//echo 'Membership Type: <b>' . $this->item->membershipType . '</b><br>';
 echo 'Team Status: <b>' . $this->item->teamStatus . '</b><br>';
 
 echo 'Joined Ramblers: <b>' . $this->formatDate($this->item->membershipJoinDate) . '</b>';

@@ -86,58 +86,6 @@ class ReportsController extends AdminController {
         }
     }
 
-    public function chooseGroup(): void {
-        $this->checkToken();
-
-        if (!$this->toolsHelper->isSuperuser()) {
-            throw new \RuntimeException('Only Super Users may change the report group.', 403);
-        }
-
-        $data = $this->app->input->post->get('jform', [], 'array');
-        // AreaGroup fields may be rendered by Joomla with either the normal
-        // jform[group_code] name or a direct group_code name. Accept both so
-        // the modal selection cannot be lost during form submission.
-        $postedGroup = $data['group_code'] ?? $this->app->input->post->getString('group_code', '');
-        $group = strtoupper(trim((string) $postedGroup));
-        $returnUrl = (string) ($data['return_url'] ?? 'index.php?option=com_ra_members&view=reports');
-
-        if ($group !== 'N') {
-            if (!preg_match('/^[A-Z0-9]{4}$/', $group)) {
-                throw new \InvalidArgumentException('Select a valid four-character group code or All groups.');
-            }
-
-            $exists = $this->toolsHelper->getValue(
-                    'SELECT code FROM #__ra_groups WHERE code=' . $this->db->quote($group) . ' LIMIT 1'
-            );
-            if (!$exists) {
-                throw new \InvalidArgumentException('The selected group does not exist.');
-            }
-        }
-
-        $this->app->setUserState('com_ra_members.reports.group', $group);
-        $this->app->enqueueMessage($group === 'N' ? 'Reports now include all groups.' : 'Reports now use group ' . $group . '.', 'message');
-        $this->setRedirect(Route::_($this->safeReportReturnUrl($returnUrl), false));
-    }
-
-    public function clearGroup(): void {
-        // The reports view exposes this as a one-click GET link, so validate
-        // the token from the query string rather than looking only in POST.
-        $this->checkToken('get');
-
-        if (!$this->toolsHelper->isSuperuser()) {
-            throw new \RuntimeException('Only Super Users may change the report group.', 403);
-        }
-
-        $this->app->setUserState('com_ra_members.reports.group', '');
-        $this->app->enqueueMessage('The report group override has been cleared.', 'message');
-        $returnUrl = $this->app->input->getString('return_url', 'index.php?option=com_ra_members&view=reports');
-        $this->setRedirect(Route::_($this->safeReportReturnUrl($returnUrl), false));
-    }
-
-    private function safeReportReturnUrl(string $url): string {
-        return (str_starts_with($url, 'index.php?option=com_ra_members&view=reports') || str_starts_with($url, 'index.php?option=com_ra_members&view=members')) ? $url : 'index.php?option=com_ra_members&view=reports';
-    }
-
     public function addressLabels() {
         $mode = $this->app->input->getInt('mode', 1);
 
@@ -145,21 +93,19 @@ class ReportsController extends AdminController {
             $mode = 1;
         }
 
-        $sql = 'SELECT p.title, p.firstName, p.lastName, p.preferred_name, ';
+        $sql = 'SELECT p.title, p.firstName, p.lastName, p.preferred_name, p.home_group,';
         $sql .= 'p.address1, p.address2, p.address3, p.town, p.county, p.country, p.postcode ';
         $sql .= 'FROM #__ra_profiles AS p ';
         $sql .= 'LEFT JOIN #__users AS u ON u.id = p.id ';
-        $sql .= "WHERE p.state = 1 AND p.home_group <> 'ZZ99' ";
+        $sql .= 'WHERE p.state = 1  ';
+        $sql .= $this->buildCriterion('AND', 'p.home_group');
 
         if ($mode === 1) {
-            $sql .= "AND (u.id IS NULL OR u.email IS NULL OR TRIM(u.email) = '') ";
-            $sql .= $this->buildCriterion('AND', 'p.home_group');
+            $sql .= "AND (u.id IS NULL OR u.email IS NULL OR TRIM(u.email) = '') ";         
             $reportName = 'AddressLabelsWithoutEmail';
         } else {
-            $sql .= $this->buildCriterion('AND', 'p.home_group');
             $reportName = 'AddressLabelsAllMembers';
         }
-
         $sql .= 'ORDER BY p.lastName, p.firstName, p.membershipNo';
         $rows = $this->toolsHelper->getRows($sql);
 
@@ -353,6 +299,87 @@ class ReportsController extends AdminController {
 
         $table->generate_table('Y');
         echo $this->toolsHelper->backButton($this->back . '&scope=' . $this->scope);
+    }
+
+    public function chooseGroup(): void {
+        $this->checkToken();
+
+        if (!$this->toolsHelper->isSuperuser()) {
+            throw new \RuntimeException('Only Super Users may change the report group.', 403);
+        }
+
+        $data = $this->app->input->post->get('jform', [], 'array');
+        // AreaGroup fields may be rendered by Joomla with either the normal
+        // jform[group_code] name or a direct group_code name. Accept both so
+        // the modal selection cannot be lost during form submission.
+        $postedGroup = $data['group_code'] ?? $this->app->input->post->getString('group_code', '');
+        $group = strtoupper(trim((string) $postedGroup));
+        $returnUrl = (string) ($data['return_url'] ?? 'index.php?option=com_ra_members&view=reports');
+
+        if ($group !== 'N') {
+            if (!preg_match('/^[A-Z0-9]{4}$/', $group)) {
+                throw new \InvalidArgumentException('Select a valid four-character group code or All groups.');
+            }
+
+            $exists = $this->toolsHelper->getValue(
+                    'SELECT code FROM #__ra_groups WHERE code=' . $this->db->quote($group) . ' LIMIT 1'
+            );
+            if (!$exists) {
+                throw new \InvalidArgumentException('The selected group does not exist.');
+            }
+        }
+
+        $this->app->setUserState('com_ra_members.reports.group', $group);
+        $this->app->enqueueMessage($group === 'N' ? 'Reports now include all groups.' : 'Reports now use group ' . $group . '.', 'message');
+        $this->setRedirect(Route::_($this->safeReportReturnUrl($returnUrl), false));
+    }
+
+    public function clearGroup(): void {
+        // The reports view exposes this as a one-click GET link, so validate
+        // the token from the query string rather than looking only in POST.
+        $this->checkToken('get');
+
+        if (!$this->toolsHelper->isSuperuser()) {
+            throw new \RuntimeException('Only Super Users may change the report group.', 403);
+        }
+
+        $this->app->setUserState('com_ra_members.reports.group', '');
+        $this->app->enqueueMessage('The report group override has been cleared.', 'message');
+        $returnUrl = $this->app->input->getString('return_url', 'index.php?option=com_ra_members&view=reports');
+        $this->setRedirect(Route::_($this->safeReportReturnUrl($returnUrl), false));
+    }
+
+    public function countByGroup() {
+        if (!$this->toolsHelper->isSuperuser()) {
+            throw new \RuntimeException('Only Super Users may access this report.', 403);
+        }
+        ToolBarHelper::title('Count by Group');
+        echo $this->breadcrumbs;
+        echo '<h4>Scope ' . $this->subheading . '</h4>';
+
+        $sql = 'SELECT p.home_group, g.name, count(p.id) AS cnt ';
+        $sql .= 'FROM #__ra_profiles AS p ';
+        $sql .= 'INNER JOIN #__ra_groups AS g ON p.home_group = g.code ';
+        $sql .= 'GROUP BY p.home_group ';
+        $sql .= 'ORDER BY p.home_group ';
+        $sql .= $this->buildCriterion('AND', 'home_group');
+        $rows = $this->toolsHelper->getRows($sql);
+
+        if (count($rows) == 0) {
+            echo 'No members found for the selected group.<br>';
+        } else {
+            echo '<h4>Member count by group</h4>';
+            $table = new ToolsTable();
+            $table->add_header('Code, Group,Count');
+            foreach ($rows as $row) {
+                $table->add_item($row->home_group);
+                $table->add_item($row->name);
+                $table->add_item($row->cnt);
+                $table->generate_line();
+            }
+        }
+        $table->generate_table('Different groups');
+        echo $this->toolsHelper->backButton($this->back);
     }
 
     public function duplicateNames() {
@@ -665,14 +692,14 @@ class ReportsController extends AdminController {
 
 
 // Find out how many have an email address
-        $table->add_item('1 With email/ 2 Without email');
+        $table->add_item('1 With email / 2 Without email');
         $sql = 'SELECT COUNT(p.id) as cnt FROM #__ra_profiles AS p ';
         $sql .= 'INNER JOIN #__users AS u ON u.id = p.id ';
         $sql .= $this->buildCriterion('WHERE', 'home_group');
         $one = $this->toolsHelper->getValue($sql);
         $table->add_item($one);
 
-        $sql = 'SELECT COUNT(p.id) as cnt FROM #__ra_profiles AS p  ';
+        $sql = 'SELECT COUNT(*) as cnt FROM #__ra_profiles AS p  ';
         $sql .= 'LEFT JOIN #__users AS u ON p.id = u.id ';
         $sql .= $this->buildCriterion('WHERE', 'p.home_group');
         $sql .= ' AND u.email IS NULL ';
@@ -684,7 +711,7 @@ class ReportsController extends AdminController {
         $table->generate_line();
 
         // Find out how many have a membership number
-        $table->add_item('1 With Membership No/ 2 Without Membership No');
+        $table->add_item('1 With Membership No / 2 Without Membership No');
         $sql = 'SELECT COUNT(*) as cnt FROM #__ra_profiles ';
         $sql .= 'WHERE membershipNo IS NOT NULL ';
         //       echo $sql . '<br>';
@@ -713,6 +740,7 @@ class ReportsController extends AdminController {
             $operator = ' AND ';
         }
 
+        /*
         $table->add_item('1 Member / 2 Affiliate');
         $criterion = $operator . 'teamStatus="';
         $one = $this->toolsHelper->getValue($sql . $criterion . 'Member' . '"');
@@ -722,6 +750,7 @@ class ReportsController extends AdminController {
         $balance = $tot - $one - $two;
         $table->add_item($balance);
         $table->generate_line();
+*/
 
         $table->add_item('1 Active / 2 Pending');
         $criterion = $operator . 'membershipStatus="';
@@ -791,25 +820,37 @@ class ReportsController extends AdminController {
           $one = $this->toolsHelper->getValue($sql . $criterion);
           echo 'Area Marketing Consent ' . $one . '<br>';
          */
-        $criterion = $operator . 'nowalkProgramme="YES"';
+        $criterion = $operator . 'noWalkProgram="YES"';
         $one = $this->toolsHelper->getValue($sql . $criterion);
         echo 'Walk Programme Opt-Out ' . $one . '<br>';
+        echo '<br>';
+        $this->histogram('teamStatus');
+
         if (JDEBUG) {
-            $this->histogram('MemberType');
-            $this->histogram('MemberTerm');
-            $this->histogram('teamStatus');
-            $this->histogram('volunteer');
+//            $this->histogram('MemberType');
+//            $this->histogram('MemberTerm');            
+//            $this->histogram('volunteer');
         }
         echo $this->toolsHelper->backButton($this->back);
     }
 
     public function histogram($field) {
-        $sql = 'SELECT COUNT(*), ' . $field . ' FROM #__ra_profiles ';
+        $sql = 'SELECT COUNT(*) AS cnt, ' . $field . ' FROM #__ra_profiles ';
         $sql .= $this->buildCriterion('WHERE', 'home_group');
         $sql .= ' GROUP BY ' . $field;
         $sql .= ' ORDER BY ' . $field;
-        $this->toolsHelper->showSql($sql);
-        echo '<b>';
+        $table = new ToolsTable();
+        $table->add_header( 'Value,Count');
+ //       $this->toolsHelper->showSql($sql);
+        echo '<b>Analysis by ' . $field . '</b><br>';
+        $rows = $this->toolsHelper->getRows($sql);
+        foreach ($rows as $row) {
+            
+            $table->add_item($row->$field);
+            $table->add_item($row->cnt);
+            $table->generate_line();
+        }
+        $table->generate_table();
     }
 
     public function recentJoiners() {
@@ -897,7 +938,7 @@ class ReportsController extends AdminController {
             $sql .= 'LEFT JOIN `#__ra_profiles` AS p ON p.id = ms.user_id ';
             $sql .= 'WHERE field_name="Record" ';
             $sql .= $this->buildCriterion('AND', 'p.home_group');
-            $sql .= 'ORDER BY a.created DESC';
+            $sql .= 'ORDER BY a.created DESC ';
             $headers .= 'Name,Member No,List,Details,Days ago';
         } else {
             $sql = 'SELECT p.teamRelationshipFrom, p.home_group, p.membershipNo, p.preferred_name, ';
@@ -907,9 +948,10 @@ class ReportsController extends AdminController {
             $sql .= 'INNER JOIN `#__ra_profiles` AS p ON p.id = a.object_id ';
             $sql .= $this->buildCriterion('WHERE', 'p.home_group');
             $sql .= 'AND NOT (field_name="sourceRetrievedAt") ';
-            $sql .= 'ORDER BY a.date_amended DESC';
+            $sql .= 'ORDER BY a.date_amended DESC ';
             $headers .= 'Name,Member No,Field,Details,Days ago';
         }
+        $sql .= 'LIMIT ' . $count;
         $table->add_header($headers);
         if (JDEBUG) {
             echo "$sql<br>";
@@ -1097,6 +1139,10 @@ class ReportsController extends AdminController {
         echo count($rows) . ' Members joined Ramblers this month<br>';
         $back = 'administrator/index.php?option=com_ra_members&task=reports.analyseJoinedRamblers&scope=' . $this->scope;
         echo $this->toolsHelper->backButton($back);
+    }
+
+    private function safeReportReturnUrl(string $url): string {
+        return (str_starts_with($url, 'index.php?option=com_ra_members&view=reports') || str_starts_with($url, 'index.php?option=com_ra_members&view=members')) ? $url : 'index.php?option=com_ra_members&view=reports';
     }
 
     public function showMembersLapsing() {

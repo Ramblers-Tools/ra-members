@@ -25,7 +25,6 @@ use Ramblers\Component\Ra_members\Site\Helper\LoadHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\SchemaHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 
-
 class SystemController extends FormController {
 
     protected $app;
@@ -192,10 +191,10 @@ class SystemController extends FormController {
             $sql .= $this->db->quote($code) . ',NULL';
             $sql .= ' "C", "1", "1", "0", ';
             $sql .= $this->db->quote('Sent to you as a walk leader for ' . $name);
-            // $sql .= 'VALUES ("1", "Members Newsletter", ';
-            // $sql .= $this->db->quote($code) . ', ' . $this->db->quote($code) . ',';
-            // $sql .= ' "O", "1", "1", "0", ';
-            //  $sql .= $this->db->quote('Sent to you as a member of the Ramblers ' . $name);
+// $sql .= 'VALUES ("1", "Members Newsletter", ';
+// $sql .= $this->db->quote($code) . ', ' . $this->db->quote($code) . ',';
+// $sql .= ' "O", "1", "1", "0", ';
+//  $sql .= $this->db->quote('Sent to you as a member of the Ramblers ' . $name);
             $sql .= ', "0", NULL, NULL, current_timestamp(), "1", NULL, "0");';
             $this->toolsHelper->executeCommand($sql);
         }
@@ -256,13 +255,12 @@ class SystemController extends FormController {
 //        $mailHelper = new MailHelper;
         $helper = New SchemaHelper;
 //        $helper->checkColumn('ra_logfile', 'sub_system', 'U', 'VARCHAR(10) NOT NULL; ');
-
-//        return; 
-        $apiSiteId = (int) $this->app->input->getInt('id',12);
+//        return;
+        $apiSiteId = (int) $this->app->input->getInt('id', 12);
 
         if ($apiSiteId < 1) {
             echo 'api-site-id must be a positive integer.';
-        } else {        
+        } else {
             echo 'Loading users for api-site-id=' . $apiSiteId . '<br>';
             $result = $loadUsers->loadMembers($apiSiteId);
             foreach ($loadUsers->messages as $message) {
@@ -271,10 +269,10 @@ class SystemController extends FormController {
         }
         $target = 'administrator/index.php?option=com_ra_tools&view=dashboard';
         echo $toolsHelper->backButton($target);
-        }
+    }
 
     public function UpdateMembership() {
-        //       $id = $this->objApp->input->getInt('id', '0');
+//       $id = $this->objApp->input->getInt('id', '0');
         ToolBarHelper::title($this->prefix . 'UpdateMembership');
         if (!$this->toolsHelper->isSuperuser()) {
             echo 'Invalid access<br>';
@@ -293,7 +291,7 @@ class SystemController extends FormController {
     }
 
     public function updateSchema() {
-        //     index.php?option=com_ra_members&task=system.UpdateSchema
+//     index.php?option=com_ra_members&task=system.UpdateSchema
         ToolBarHelper::title($this->prefix . 'UpdateSchema');
         echo '<p>The #__ra_profiles schema is owned by com_ra_tools. Reinstall the revised RA Tools package to update it.</p>';
         $back = 'administrator/index.php?option=com_ra_tools&view=dashboard';
@@ -318,8 +316,8 @@ class SystemController extends FormController {
 
         if ($memberId < 1 || $userId < 1) {
             $form = Form::getInstance(
-                    'com_ra_members.sharedprofile',
-                    JPATH_ADMINISTRATOR . '/components/com_ra_members/forms/sharedprofile.xml'
+                            'com_ra_members.sharedprofile',
+                            JPATH_ADMINISTRATOR . '/components/com_ra_members/forms/sharedprofile.xml'
             );
             echo '<h1>Attach shared-email profiles</h1>';
             echo '<p>Select the existing Joomla user, the second unlinked Member profile, and the combined name to use.</p>';
@@ -386,6 +384,41 @@ class SystemController extends FormController {
         Log::add($message, Log::NOTICE, 'ra_members');
         $this->app->enqueueMessage($message, 'message');
         $this->setRedirect('index.php?option=com_ra_members&view=member&member_id=' . $memberId);
+    }
+
+    public function showGuests() {
+
+        $sql = 'SELECT e.event_date, e.title, p.preferred_name, b.partner, COUNT(g.id) AS cnt ';
+        $sql .= 'FROM `#__ra_bookings` AS b ';
+        $sql .= 'INNER JOIN #__ra_events AS e ON e.id = b.event_id ';
+        $sql .= 'LEFT JOIN #__ra_profiles AS p ON p.id = b.user_id ';
+        $sql .= 'LEFT JOIN #__ra_booking_guests AS g ON g.booking_id = b.id ';
+        $sql .= 'WHERE b.partner > "" ';
+        $sql .= 'GROUP BY e.event_date, e.title, p.preferred_name, b.partner ';
+        $sql .= 'ORDER BY e.event_date DESC, e.title, p.preferred_name';
+        $rows = $this->toolsHelper->getRows($sql);
+
+        if (!rows) {
+            echo 'No bookings have Guests<br>';
+            return;
+        }
+        $header = 'Date,Title,User,Other,Count';
+        $toolsTable = new ToolsTable();
+        $toolsTable->add_header(header);
+        foreach ($rows as $row) {
+            $toolsTable->add_item(row->event_date);
+            $toolsTable->add_item(row->title);
+            $toolsTable->add_item(row->preferred_name);
+            $toolsTable->add_item(row->partner);
+            $toolsTable->add_item(row->cnt);
+            $toolsTable->generate_line();
+            // convert the name of the partner to an array with just one item
+            if (row->cnt == 0) {
+                $names = explode('@', $row->partner, 1);
+                // Save to ra_booking_guests
+                $bookingHelper->saveGuests($row->id, $names);
+            }
+        } $toolsTable->generate_table('Bookings');
     }
 
 }

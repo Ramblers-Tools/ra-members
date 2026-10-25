@@ -71,7 +71,7 @@ if (!empty($this->isSuper)) {
 <?php
 $admin_reports = [
     // only show these reports to superusers
-
+    'Count by Group' => 'administrator/index.php?option=com_ra_members&task=reports.countByGroup',
     'Users awaiting password reset' => 'administrator/index.php?option=com_ra_mailman&task=reports.resetUsers',
 //    'Search all Logfile records' => 'administrator/index.php?option=com_ra_tools&view=logfiles&callback=dashboard',
     'Show recent Logfile records' => 'administrator/index.php?option=com_ra_tools&task=reports.showLogfile&option=com_ra_mailman',
@@ -103,8 +103,8 @@ $joint_reports = [
     'Shared Address' => 'administrator/index.php?option=com_ra_members&task=reports.sharedAddress&scope=G',
 ];
 $address_labels = [
-    'Address labels - members without email' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&mode=1',
-    'Address labels - all members' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&mode=2',
+    'Address labels - members without email' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&scope=G&mode=1',
+    'Address labels - all members' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&scope=G&mode=2',
 ];
 
 $systemReports = array();
@@ -141,7 +141,7 @@ if ($code !== 'N') {
         <div class="clearfix"> </div>
         <?php
         echo '<div class="dashboard-grid">';
-        echo $this->toolsHelper->buildDashboardReportBlock('System reports', $systemReports);
+        echo $this->toolsHelper->buildDashboardReportBlock('Global reports', $systemReports);
         if ($show_area_reports == '1') {
             echo $this->toolsHelper->buildDashboardReportBlock('Area reports', $areaReports);
         }
