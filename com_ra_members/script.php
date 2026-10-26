@@ -24,6 +24,8 @@ use Joomla\Database\ParameterType;
 use Joomla\Filesystem\Exception\FilesystemException;
 use Joomla\Filesystem\File;
 use Joomla\Filesystem\Folder;
+use Ramblers\Component\Ra_tools\Site\Helpers\SchemaHelper;
+use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 
 class Com_Ra_membersInstallerScript {
 
@@ -149,7 +151,7 @@ class Com_Ra_membersInstallerScript {
     }
 
     public function install($parent): bool {
-        $this->message('Installing RA Members (com_ra_members).');
+        $this->message('Installing RA Members component (com_ra_members).');
         return true;
     }
 
@@ -178,7 +180,7 @@ class Com_Ra_membersInstallerScript {
     }
 
     public function preflight($type, $parent): bool {
-        $this->message('Preflight RA Members (type=' . $type . ').');
+        $this->message('Preflight RA Members component(type=' . $type . ').');
         if ($type == 'uninstall') {
             return true;
         }
@@ -196,6 +198,9 @@ class Com_Ra_membersInstallerScript {
         $this->getToolsHelper();
         $this->getSchemaHelper();
 
+        if ($type === 'install') {
+            return true;
+        }
         if (ComponentHelper::isEnabled('com_ra_members', true)) {
             try {
                 $this->original_version = $this->getInstalledComponentVersion();
@@ -210,7 +215,6 @@ class Com_Ra_membersInstallerScript {
             $this->message('com_ra_members already present, version=' . $this->original_version . '.');
         } else {
             $this->message('Installer could not find the existing com_ra_members installation.');
-            return false;
         }
         $versionRequired = '1.1.0';
 
@@ -232,7 +236,7 @@ class Com_Ra_membersInstallerScript {
         return true;
     }
 
-        public function red($text) {
+    public function red($text) {
         echo '<p><span style="color: #ff0000;"><strong>';
         echo $text;
         echo '</strong></span></p>';

@@ -36,3 +36,5 @@ HTMLHelper::_('bootstrap.tooltip');
     <?php echo HTMLHelper::_('form.token'); ?>
 
 </form>
+<?php
+echo 'Select a User to be added, and specify if they can access RA Members and/or RA Mailman.';

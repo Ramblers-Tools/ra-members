@@ -43,6 +43,12 @@ class pkg_ra_membersInstallerScript
         return false;
     }
 
+    public function install($parent): bool {
+        $this->message('Installing RA Members package (pkg_ra_members).');
+        $this->reconfigure_message = true;
+        return true;
+    }
+
     private function message(string $message): void {
         Factory::getApplication()->enqueueMessage($message, 'message');
     }
@@ -58,7 +64,7 @@ class pkg_ra_membersInstallerScript
             echo '<p>com_ra_members is unchanged at ' . $new_version . '</p>';
         }
         if ($this->reconfigure_message == true) {
-            $this->message('Please review and update the configuration settings for com_ra_members.');
+            $this->red('Please review and update the configuration settings for com_ra_members.');
         }
         $message = '<b>Useful links</b><br>'
                 . $this->buildButton('index.php?option=com_ra_tools&view=dashboard', 'Dashboard', false, 'granite') . '<br>'
@@ -69,7 +75,7 @@ class pkg_ra_membersInstallerScript
 
     public function preflight($type, $parent): bool
     {
-        $this->message('Preflight RA Members (type=' . $type . ').');
+        $this->message('Preflight RA Members package (type=' . $type . ').');
         if ($type === 'uninstall') {
             return true;
         }
@@ -93,4 +99,10 @@ class pkg_ra_membersInstallerScript
         // All good
         return true;
     }
+    public fun
+    ction red($text) {
+        echo '<p><span style="color: #ff0000;"><strong>';
+        echo $text;
+        echo '</strong></span></p>';
+    }    
 }

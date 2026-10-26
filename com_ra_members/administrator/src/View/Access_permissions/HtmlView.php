@@ -24,6 +24,7 @@ use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
  */
 class HtmlView extends BaseHtmlView {
 
+    protected $app;
     protected $items;
     protected $toolsHelper;
 
@@ -42,6 +43,7 @@ class HtmlView extends BaseHtmlView {
      * @return  mixed  A string if successful, otherwise an Error object.
      */
     public function display($tpl = null) {
+        $this->app = Factory::getApplication();
         $this->toolsHelper = new ToolsHelper;
         $this->getItems();
 
@@ -59,7 +61,7 @@ class HtmlView extends BaseHtmlView {
      */
     protected function addToolbar() {
         // Suppress menu side panel
-       Factory::getApplication()->input->set('hidemainmenu', true);
+        $this->app->input->set('hidemainmenu', true);
 
         // Get the toolbar object instance
         $toolbar = Toolbar::getInstance('toolbar');
@@ -93,7 +95,6 @@ class HtmlView extends BaseHtmlView {
         $sql .= 'WHERE g.title IN ("com_ra_members", "com_ra_mailman") ';
         $sql .= 'GROUP BY u.id, p.preferred_name ';
         $sql .= 'ORDER BY p.preferred_name';
-
         $this->items = $this->toolsHelper->getRows($sql);
         $this->item_count = (is_null($this->items) ? 0 : count($this->items));
     }

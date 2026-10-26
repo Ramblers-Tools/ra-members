@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <form addfieldprefix="Ramblers\Component\Ra_tools\Administrator\Field">
   <fieldset>
-    <field name="id" type="text" readonly="true" class="readonly" default="0" description="JGLOBAL_FIELD_ID_DESC"/>
+    <field name="id" type="hidden" readonly="true"  default="0" description="JGLOBAL_FIELD_ID_DESC"/>
 
     <field name="user" 
            type="user" 

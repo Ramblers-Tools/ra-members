@@ -1,9 +1,11 @@
 <?php
 /**
  * 22/10/26 CB created
+ * 26/10/26 CB correct task buttons
  */
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
@@ -13,21 +15,33 @@ use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
 // Import CSS
 $wa = $this->document->getWebAssetManager();
 $wa->registerAndUseStyle('ramblers', 'com_ra_tools/ramblers.css');
-HTMLHelper::_('script', 'administrator/components/com_ra_tools/assets/js/shared-task-buttons.js', ['version' => 'auto'], ['defer' => true]);
 
 $editIcon = '<span class="fa fa-pen-square me-2" aria-hidden="true"></span>';
 $objHelper = new ToolsHelper;
 $self = 'index.php?option=com_ra_members&view=access_permissions';
 
-function renderAccessButton($userId, $component, $hasAccess) {
-    $task = $hasAccess ? 'access_permission.revoke' : 'access_permission.grant';
+function renderAccessButton($userId, $component, $hasAccess)
+{
+    $task = $hasAccess
+        ? 'access_permission.revoke'
+        : 'access_permission.grant';
+
     $label = $hasAccess ? 'Revoke' : 'Grant';
     $colour = $hasAccess ? 'sunset' : 'forest';
-    $target = 'index.php?option=com_ra_members';
-    $target .= '&user_id=' . (int) $userId;
-    $target .= '&component=' . urlencode($component);
 
-    return '<button type="submit" class="btn btn-sm ' . $colour . '" data-task="' . $task . '" formaction="' . Route::_($target) . '">' . $label . '</button>';
+    return '<button
+        type="submit"
+        class="btn btn-sm ' . $colour . '"
+        data-task="' . $task . '"
+        data-user-id="' . (int) $userId . '"
+        data-component="' . htmlspecialchars($component, ENT_QUOTES, 'UTF-8') . '"
+        onclick="
+            this.form.elements[\'task\'].value = this.dataset.task;
+            this.form.elements[\'user_id\'].value = this.dataset.userId;
+            this.form.elements[\'component\'].value = this.dataset.component;
+        ">'
+        . $label .
+        '</button>';
 }
 
 echo '<form action="' . Route::_($self) . '" method="post" name="adminForm" id="adminForm" data-task-target="task">' . PHP_EOL;
@@ -84,9 +98,14 @@ if (empty($this->items)) {
 ?>
 
 <input type="hidden" name="task" id="task" value="">
+<input type="hidden" name="user_id" id="user_id" value="0">
+<input type="hidden" name="component" id="component" value="">
 <?php echo HTMLHelper::_('form.token'); ?>
 </div>
 </div>
 </div>
 </form>
+<?php
+echo 'This shows the users that have permission to access RA Members and/or RA Mailman. You can adjust their access 
+using the buttons provided, and add a new User using the toolbar above.';
 

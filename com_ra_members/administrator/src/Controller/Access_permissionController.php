@@ -36,7 +36,7 @@ class Access_permissionController extends FormController {
             CMSApplication $app = null,
             Input $input = null
     ) {
-    parent::__construct($config, $factory, $app, $input);
+        parent::__construct($config, $factory, $app, $input);
         $this->app = Factory::getApplication();
         $this->toolsHelper = new ToolsHelper;
         $this->back = '/administrator/index.php?option=com_ra_members&view=access_permissions';
@@ -72,26 +72,26 @@ class Access_permissionController extends FormController {
 
         if ($enabled) {
             $query = $db->getQuery(true)
-                ->select('COUNT(*)')
-                ->from($db->quoteName('#__user_usergroup_map'))
-                ->where($db->quoteName('user_id') . ' = ' . (int) $userId)
-                ->where($db->quoteName('group_id') . ' = ' . (int) $groupId);
+                    ->select('COUNT(*)')
+                    ->from($db->quoteName('#__user_usergroup_map'))
+                    ->where($db->quoteName('user_id') . ' = ' . (int) $userId)
+                    ->where($db->quoteName('group_id') . ' = ' . (int) $groupId);
             $db->setQuery($query);
             $exists = (int) $db->loadResult() > 0;
 
             if (!$exists) {
                 $query = $db->getQuery(true)
-                    ->insert($db->quoteName('#__user_usergroup_map'))
-                    ->columns($db->quoteName(['user_id', 'group_id']))
-                    ->values((int) $userId . ',' . (int) $groupId);
+                        ->insert($db->quoteName('#__user_usergroup_map'))
+                        ->columns($db->quoteName(['user_id', 'group_id']))
+                        ->values((int) $userId . ',' . (int) $groupId);
                 $db->setQuery($query);
                 $db->execute();
             }
         } else {
             $query = $db->getQuery(true)
-                ->delete($db->quoteName('#__user_usergroup_map'))
-                ->where($db->quoteName('user_id') . ' = ' . (int) $userId)
-                ->where($db->quoteName('group_id') . ' = ' . (int) $groupId);
+                    ->delete($db->quoteName('#__user_usergroup_map'))
+                    ->where($db->quoteName('user_id') . ' = ' . (int) $userId)
+                    ->where($db->quoteName('group_id') . ' = ' . (int) $groupId);
             $db->setQuery($query);
             $db->execute();
         }
@@ -133,7 +133,7 @@ class Access_permissionController extends FormController {
         $groupId = $this->lookupGroupId($component);
 
         if ($userId <= 0 || $groupId <= 0) {
-            $this->app->enqueueMessage('Invalid parameters for grant.', 'error');
+            $this->app->enqueueMessage('Invalid parameters for grant: User ' . $userId . ', component ' . $component, 'error');
             $this->setRedirect($this->back);
             return;
         }
@@ -154,9 +154,9 @@ class Access_permissionController extends FormController {
 
         $db = $this->getDatabase();
         $query = $db->getQuery(true)
-            ->select($db->quoteName('id'))
-            ->from($db->quoteName('#__usergroups'))
-            ->where($db->quoteName('title') . ' = ' . $db->quote($component));
+                ->select($db->quoteName('id'))
+                ->from($db->quoteName('#__usergroups'))
+                ->where($db->quoteName('title') . ' = ' . $db->quote($component));
         $db->setQuery($query);
 
         return (int) $db->loadResult();
