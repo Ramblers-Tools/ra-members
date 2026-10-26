@@ -36,8 +36,8 @@
             <option value="a.blocked DESC">Blocked DESC</option>
             <option value="preferred_name ASC">Preferred name ASC</option>
             <option value="preferred_name DESC">Preferred name DESC</option>
-            <option value="a.id ASC">COM_RA_TOOLS_ID_ASC</option>
-            <option value="a.id DESC">COM_RA_TOOLS_ID_DESC</option>
+            <option value="a.id ASC">ID ASC</option>
+            <option value="a.id DESC">ID DESC</option>
             
         </field>
 

@@ -33,7 +33,7 @@ echo '<br>';
 echo '<h3>Personal Information</h3>';
 echo 'Name: <b>' . $this->item->title . ' ' . $this->item->firstName . ' ' . $this->item->lastName . '</b><br>';
 echo 'Preferred Name: <b>' . $this->item->preferred_name . '</b><br>';
-echo 'Home group: <b>' . $this->item->home_group . '</b>'. $this->toolsHelper->lookupGroup($this->item->home_group);
+echo 'Home group: <b>' . $this->item->home_group . '</b>' . $this->toolsHelper->lookupGroup($this->item->home_group);
 if ($this->item->home_group !== $this->item->groupCode) {
     echo ', Group code: <b>';
     if (is_null($this->item->groupCode)) {
@@ -105,14 +105,13 @@ echo '<h3>Membership</h3>';
 echo 'Member Status: <b>' . $this->item->membershipStatus . '</b><br>';
 echo 'Member Type: <b>' . $this->item->memberType . '</b><br>';
 echo 'Membership Term:<b> ' . $this->item->memberTerm . '</b><br>';
-echo 'Membership Type: <b>' . $this->item->membershipType . '</b><br>';
+echo 'Team Status: <b>' . $this->item->teamStatus . '</b><br>';
 
 echo 'Joined Ramblers: <b>' . $this->formatDate($this->item->membershipJoinDate) . '</b>';
 echo ', Joined Area <b>' . $this->formatDate($this->item->areaJoinedDate) . '</b>';
 echo ', Membership Expiry <b>' . $this->formatDate($this->item->membershipExpiry) . '</b>';
 echo ', Membership End date <b>' . $this->formatDate($this->item->membershipEndDate) . '</b>';
 
-echo 'Team Status: <b>' . $this->item->teamStatus . '</b>';
 echo ', Affiliate Member Primary Group: <b>' . $this->item->affiliateMemberPrimaryGroup . '</b><br>';
 echo '<br>';
 

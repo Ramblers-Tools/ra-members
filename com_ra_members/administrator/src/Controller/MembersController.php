@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @version    1.0.0
  * @package    com_ra_members
@@ -25,27 +26,39 @@ use Joomla\Utilities\ArrayHelper;
  *
  * @since  1.0.0
  */
-class MembersController extends AdminController
-{
+class MembersController extends AdminController {
 
     public function cancel($key = null, $urlVar = null) {
         $this->setRedirect('index.php?option=com_ra_tools&view=dashboard');
     }
-	/**
-	 * Proxy for getModel.
-	 *
-	 * @param   string  $name    Optional. Model name
-	 * @param   string  $prefix  Optional. Class prefix
-	 * @param   array   $config  Optional. Configuration array for model
-	 *
-	 * @return  object	The Model
-	 *
-	 * @since   1.0.0
-	 */
-	public function getModel($name = 'Member', $prefix = 'Administrator', $config = array())
-	{
-		return parent::getModel($name, $prefix, array('ignore_request' => true));
-	}
 
+    /**
+     * Proxy for getModel.
+     *
+     * @param   string  $name    Optional. Model name
+     * @param   string  $prefix  Optional. Class prefix
+     * @param   array   $config  Optional. Configuration array for model
+     *
+     * @return  object	The Model
+     *
+     * @since   1.0.0
+     */
+    public function getModel($name = 'Member', $prefix = 'Administrator', $config = array()) {
+        return parent::getModel($name, $prefix, array('ignore_request' => true));
+    }
+
+    public function test() {
+        $loadHelper = new LoadHelper;
+        $apiSiteId = 9;
+        $result = $loadHelper->loadMembers($apiSiteId);
+
+        foreach ($loadHelper->messages as $message) {
+            echo $message . '<br>';
+        }
+
+        if (!$result) {
+            echo 'Processing failed ' . $result . '.<br>';
+        }
+    }
 
 }

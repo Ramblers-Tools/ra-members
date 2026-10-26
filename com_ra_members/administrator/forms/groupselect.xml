@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form addfieldprefix="Ramblers\Component\Ra_tools\Site\Field">
+    <field name="group_code" type="AreaGroup" label="Report group" description="Choose the group scope for RA Members reports." />
+    <field name="return_url" type="hidden" />
+</form>

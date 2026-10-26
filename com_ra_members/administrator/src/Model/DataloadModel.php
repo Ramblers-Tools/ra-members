@@ -282,12 +282,15 @@ class DataloadModel extends AdminModel {
                         '3',
                         '0',
                         (int) ($user->id ?? 0),
-                        $db->quote((string) ($data['file'] ?? $data['name'] ?? 'Insight CSV')),
+                        $db->quote((string) (($data['file'] ?? $data['name'] ?? '') ?: 'Insight CSV')),
                         $db->quote((string) ($_SERVER['REMOTE_ADDR'] ?? '')),
                         (int) ($user->id ?? 0),
                         '1',
                     ]));
-            $db->setQuery($query)->execute();
+            $updated = $db->setQuery($query)->execute();
+            if ($updated === false) {
+                throw new \RuntimeException($db->getErrorMsg() ?: 'The report update was rejected by the database.');
+            }
 
             return (int) $db->insertid();
         } catch (\Throwable $exception) {
@@ -319,11 +322,19 @@ class DataloadModel extends AdminModel {
             if (is_object($loader)) {
                 $summary[] = 'New profiles: ' . (int) $loader->count_new_profiles;
                 $summary[] = 'New users: ' . (int) $loader->count_new_users;
+                $summary[] = 'New subscriptions: ' . (int) $loader->count_new_subs;
                 $summary[] = 'Updated profiles: ' . (int) $loader->count_updated;
                 $summary[] = 'Not updated: ' . (int) $loader->count_not_updated;
+                $summary[] = 'Records without email: ' . (int) $loader->count_missing_email;
                 $summary[] = 'Potentially lapsed profiles: ' . (int) $loader->count_lapsed;
             }
             $reportText = implode('<br>', array_merge($summary, $messages));
+            $newUsersText = is_object($loader) && $loader->new_users !== []
+                    ? implode('<br>', $loader->new_users)
+                    : '';
+            $newSubsText = is_object($loader) && $loader->new_subs !== []
+                    ? implode('<br>', $loader->new_subs)
+                    : '';
             $lapsedText = '';
             if (is_object($loader) && $loader->lapsed_members !== []) {
                 $lapsedText = implode('<br>', array_map(
@@ -340,19 +351,26 @@ class DataloadModel extends AdminModel {
                     ->update($db->quoteName('#__ra_import_reports'))
                     ->set($db->quoteName('num_records') . ' = ' . (int) $records)
                     ->set($db->quoteName('num_errors') . ' = ' . (int) $errors)
+                    ->set($db->quoteName('list_id') . ' = ' . (int) (is_object($loader) && method_exists($loader, 'getPrimaryListId') ? $loader->getPrimaryListId() : 0))
                     ->set($db->quoteName('num_users') . ' = ' . (int) (is_object($loader) ? $loader->count_new_users : 0))
+                    ->set($db->quoteName('num_subs') . ' = ' . (int) (is_object($loader) ? $loader->count_new_subs : 0))
                     ->set($db->quoteName('num_lapsed') . ' = ' . (int) (is_object($loader) ? $loader->count_lapsed : 0))
+                    ->set($db->quoteName('new_users') . ' = ' . $db->quote($newUsersText))
+                    ->set($db->quoteName('new_subs') . ' = ' . $db->quote($newSubsText))
                     ->set($db->quoteName('error_report') . ' = ' . $db->quote($reportText))
                     ->set($db->quoteName('lapsed_members') . ' = ' . $db->quote($lapsedText))
                     ->set($db->quoteName('modified') . ' = ' . $db->quote(Factory::getDate()->toSql()))
-                    ->set($db->quoteName('modified_by') . ' = ' . (int) Factory::getApplication()->getIdentity()->id)
+                    ->set($db->quoteName('modified_by') . ' = ' . (int) (Factory::getApplication()->getIdentity()->id ?? 0))
                     ->where($db->quoteName('id') . ' = ' . $reportId);
 
             if (!$preview) {
                 $query->set($db->quoteName('date_completed') . ' = ' . $db->quote(Factory::getDate()->toSql()));
             }
 
-            $db->setQuery($query)->execute();
+            $updated = $db->setQuery($query)->execute();
+            if ($updated === false) {
+                throw new \RuntimeException($db->getErrorMsg() ?: 'The report update was rejected by the database.');
+            }
         } catch (\Throwable $exception) {
             Factory::getApplication()->enqueueMessage(
                     'Unable to update the Insight import report: ' . $exception->getMessage(),

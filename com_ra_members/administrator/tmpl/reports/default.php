@@ -56,12 +56,22 @@ if (!empty($code) && $code !== 'N') {
     $group_report_heading = 'Group reports';
 }
 echo '<h4>Scope ' . $subheading . '</h4>';
+if (!empty($this->isSuper)) {
+    $selectUrl = '/administrator/index.php?option=com_ra_members&view=groupselect&return_url=' . rawurlencode('index.php?option=com_ra_members&view=reports');
+    echo '<p><a class="btn btn-primary" href="' . Route::_($selectUrl) . '">Choose report group</a> ';
+    $groupOverride = Factory::getApplication()->getUserState('com_ra_members.reports.group', '');
+    if ($groupOverride !== '') {
+        $token = Factory::getApplication()->getSession()->getFormToken();
+        echo '<a class="btn btn-secondary" href="' . Route::_('index.php?option=com_ra_members&task=reports.clearGroup&' . $token . '=1') . '">Clear group override</a>';
+    }
+    echo '</p>';
+}
 ?>
 
 <?php
 $admin_reports = [
     // only show these reports to superusers
-
+    'Count by Group' => 'administrator/index.php?option=com_ra_members&task=reports.countByGroup',
     'Users awaiting password reset' => 'administrator/index.php?option=com_ra_mailman&task=reports.resetUsers',
 //    'Search all Logfile records' => 'administrator/index.php?option=com_ra_tools&view=logfiles&callback=dashboard',
     'Show recent Logfile records' => 'administrator/index.php?option=com_ra_tools&task=reports.showLogfile&option=com_ra_mailman',
@@ -93,8 +103,8 @@ $joint_reports = [
     'Shared Address' => 'administrator/index.php?option=com_ra_members&task=reports.sharedAddress&scope=G',
 ];
 $address_labels = [
-    'Address labels - members without email' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&mode=1',
-    'Address labels - all members' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&mode=2',
+    'Address labels - members without email' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&scope=G&mode=1',
+    'Address labels - all members' => 'administrator/index.php?option=com_ra_members&task=reports.addressLabels&scope=G&mode=2',
 ];
 
 $systemReports = array();
@@ -129,18 +139,18 @@ if ($code !== 'N') {
 <form action="<?php echo JRoute::_('index.php?option=com_ra_tools&view=reports'); ?>" method="post" name="reportsForm" id="reportsForm">
     <div id="j-main-container" class="span10">
         <div class="clearfix"> </div>
-<?php
-echo '<div class="dashboard-grid">';
-echo $this->toolsHelper->buildDashboardReportBlock('System reports', $systemReports);
-if ($show_area_reports == '1') {
-    echo $this->toolsHelper->buildDashboardReportBlock('Area reports', $areaReports);
-}
-echo $this->toolsHelper->buildDashboardReportBlock($group_report_heading, $groupReports);
-echo $this->toolsHelper->buildDashboardReportBlock('Joint members', $joint_reports);
-echo $this->toolsHelper->buildDashboardReportBlock('Address labels', $address_labels);
-echo '</div>';
-echo $this->toolsHelper->backButton($back);
-?>
+        <?php
+        echo '<div class="dashboard-grid">';
+        echo $this->toolsHelper->buildDashboardReportBlock('Global reports', $systemReports);
+        if ($show_area_reports == '1') {
+            echo $this->toolsHelper->buildDashboardReportBlock('Area reports', $areaReports);
+        }
+        echo $this->toolsHelper->buildDashboardReportBlock($group_report_heading, $groupReports);
+        echo $this->toolsHelper->buildDashboardReportBlock('Joint members', $joint_reports);
+        echo $this->toolsHelper->buildDashboardReportBlock('Address labels', $address_labels);
+        echo '</div>';
+        echo $this->toolsHelper->backButton($back);
+        ?>
         <input type="hidden" name="task" value="" />
         <?php echo HTMLHelper::_('form.token'); ?>
     </div>

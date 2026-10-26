@@ -1,5 +1,7 @@
 <?php
-
+/*
+24/09/26 CB Identify field names in error messages
+*/
 namespace Ramblers\Component\Ra_members\Site\Service;
 
 defined('_JEXEC') or die;
@@ -12,10 +14,10 @@ final class InsightCsvMapper {
     private const FIELD_MAP = [
         'Group' => 'groupName',
         'Mem No.' => 'membershipNo',
-        'Member Type' => 'memberType',
+        'Member Type' => 'teamStatus',
         'Member Term' => 'memberTerm',
         'Member Status' => 'membershipStatus',
-        'Type' => 'membershipType',
+        'Type' => 'memberType',
         'Joint With' => 'jointWith',
         'Title' => 'title',
         'Initials' => 'initials',
@@ -54,13 +56,13 @@ final class InsightCsvMapper {
         'teamRelationshipFrom',
         'emailPermissionLastUpdated',
         'postPermissionLastUpdated',
-        'telephonePermissionLastUpdated',
+        'phoneConsentLastUpdated',
     ];
     private const BOOLEAN_FIELDS = [
         'volunteer',
         'emailConsent',
         'postConsent',
-        'phonConsent',
+        'phoneConsent',
         'noWalkProgram',
     ];
 
@@ -119,7 +121,10 @@ final class InsightCsvMapper {
                 $value = strtolower($value);
 
                 if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
-                    throw new \InvalidArgumentException('Invalid Email Address.');
+                    $name = trim((string) ($data['firstName'] ?? '') . ' ' . (string) ($data['lastName'] ?? ''));
+                    throw new \InvalidArgumentException(
+                            'Invalid email ' . $value . ' found for ' . ($name !== '' ? $name : 'unknown member')
+                    );
                 }
             }
 
@@ -127,14 +132,17 @@ final class InsightCsvMapper {
         }
 
         if ($data['membershipNo'] === null) {
-            throw new \InvalidArgumentException('Mem No. is required.');
+            throw new \InvalidArgumentException('Mem No.: value is required.');
         }
 
         if ($data['groupCode'] === null || !preg_match('/^[A-Z0-9]{4}$/', strtoupper($data['groupCode']))) {
-            throw new \InvalidArgumentException('Group Code must contain four letters or digits.');
+            throw new \InvalidArgumentException('Group Code: value must contain four letters or digits.');
         }
 
         $data['groupCode'] = strtoupper($data['groupCode']);
+        if ($data['affiliateMemberPrimaryGroup'] !== null) {
+            $data['affiliateMemberPrimaryGroup'] = substr($data['affiliateMemberPrimaryGroup'], 0, 4);
+        }
         $data['home_group'] = $data['groupCode'];
         $data['insightPayload'] = json_encode(
                 $source,

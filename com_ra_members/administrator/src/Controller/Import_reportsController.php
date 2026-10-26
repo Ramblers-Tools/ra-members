@@ -33,7 +33,7 @@ class Import_reportsController extends AdminController {
     protected $view_item = 'dataload';
 // Ensure control returns to Dashboard, not import_reports
     protected $view_list = 'dashboard';
-    protected $back = 'administrator/index.php?option=com_ra_members&view=import_reports';
+    protected $back = 'administrator/index.php?option=com_ra_mailman&view=import_reports';
     protected $db;
     protected $app;
     protected $toolsHelper;
@@ -82,8 +82,19 @@ class Import_reportsController extends AdminController {
         $sql .= 'WHERE r.id= ' . $id;
 //        $target = 'administrator/index.php?option = com_users&view = users ';
         $item = $this->toolsHelper->getItem($sql);
+                echo "$sql<br>";
+        var_dump($item);
         echo '<b>Report</b>: ' . $id . '<br>';
-        echo '<b>List</b>: ' . ($item->name ?: 'RA Members Insight import') . '<br>';
+        // echo '<b>List</b>: ' . ($item->name ?: 'RA Members Insight import') . '<br>';
+
+        echo '<b>List: </b>';
+        if (is_null($item->name)) {
+            echo 'RA Members Insight import';
+        } else {
+            echo $item->name;
+        }
+        // echo '<b>List</b>: RA Members Insight import<br>';
+        echo '<br>';
         if (is_null($item->date_completed)) {
             echo '<div style="color:red"> <b>Date 1</b>: ' . HTMLHelper::_('date', $item->date_phase1, 'H:i d/m/y') . ' Validation only!</div>';
         } else {
@@ -100,6 +111,7 @@ class Import_reportsController extends AdminController {
         if ($item->num_lapsed > 0) {
             echo '<b>Number of members lapsed</b>: ' . $item->num_lapsed . '<br>';
         }
+        echo '<b>Error report</b>: ' . $item->error_report . '<br>';
         echo '<br>';
     }
 

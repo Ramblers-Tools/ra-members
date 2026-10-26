@@ -13,6 +13,7 @@
  * 18/04/26 CB created
  * 05/06/26 CB include expired members
  * 21/06/26 CB add lookupMember
+ * 24/09/26 CB add SharedUserNameResolver
  */
 
 namespace Ramblers\Component\Ra_members\Site\Helper;
@@ -24,8 +25,7 @@ use Joomla\CMS\Factory;
 use Ramblers\Component\Ra_mailman\Site\Helpers\Mailhelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\JsonHelper;
 use Ramblers\Component\Ra_tools\Site\Helpers\ToolsHelper;
-use Ramblers\Component\Ra_tools\Site\Helpers\UserHelper;
-use Ramblers\Component\Ra_tools\Site\Service\SharedUserNameResolver;
+use Ramblers\Component\Ra_tools\Site\Helpers\PersonHelper;
 use Ramblers\Component\Ra_members\Site\Service\SupporterApiConfig;
 use Ramblers\Component\Ra_members\Site\Service\SupporterMapper;
 use Ramblers\Component\Ra_members\Site\Service\MemberFeedMode;
@@ -36,13 +36,13 @@ class LoadHelper {
     protected $db;
     protected $app;
     protected $toolsHelper;
+    protected $personHelper;
     protected $jsonHelper;
     protected $mailHelper;
     protected $primary_list;
     protected $profileColumns;
     protected $auditColumns;
     protected $roleColumns;
-    protected $sharedUserNameResolver;
     protected $supporterMapper;
     protected $userColumns;
     protected $duplicateFeedMembers = array();
@@ -55,11 +55,15 @@ class LoadHelper {
     public $comment_count;
     public $count_new_profiles = 0;
     public $count_new_users = 0;
+    public $new_users = [];
+    public $count_new_subs = 0;
+    public $new_subs = [];
     public $count_legacy_profiles_reused = 0;
     public $count_not_updated = 0;
     public $count_updated = 0;
     public $count_records = 0;
     public $count_errors = 0;
+    public $count_missing_email = 0;
     public $count_lapsed = 0;
     public $lapsed_members = [];
     public $errors;
@@ -70,9 +74,9 @@ class LoadHelper {
         $this->db = Factory::getDbo();
         $this->jsonHelper = new JsonHelper;
         $this->mailHelper = new MailHelper;
-        $this->sharedUserNameResolver = new SharedUserNameResolver();
         $this->supporterMapper = new SupporterMapper();
         $this->toolsHelper = new ToolsHelper;
+        $this->personHelper = new PersonHelper;
         $this->comments = array();
         $this->errors = array();
         $this->comment_count = 0;
@@ -106,12 +110,22 @@ class LoadHelper {
         $email = $this->normaliseScalar($member['email'] ?? null);
 
         if ($email !== null && $this->isDuplicateFeedEmail($email)) {
-            $sharedName = $this->sharedUserNameResolver->resolve(
-                    $this->duplicateFeedMembers[strtolower($email)]
-            );
+            $names = [];
 
-            if ($sharedName !== null) {
-                return $sharedName;
+            foreach ($this->duplicateFeedMembers[strtolower($email)] as $sharedMember) {
+                $sharedMember = $this->normaliseMember($sharedMember);
+                $memberRef = (string) ($sharedMember['memberRef'] ?? '');
+                $fullName = trim((string) ($sharedMember['firstName'] ?? '') . ' '
+                        . (string) ($sharedMember['lastName'] ?? ''));
+
+                if ($fullName !== '') {
+                    $names[$memberRef . ':' . $fullName] = $fullName;
+                }
+            }
+
+            if ($names !== []) {
+                ksort($names, SORT_NATURAL | SORT_FLAG_CASE);
+                return implode(' and ', array_values($names));
             }
         }
 
@@ -129,27 +143,34 @@ class LoadHelper {
             return null;
         }
 
-        $userHelper = new UserHelper;
-        $userHelper->group_code = $this->normaliseScalar($member['groupCode'] ?? '');
-        $userHelper->name = $this->buildUserName($member);
-        $userHelper->email = $email;
-
-        if (!$userHelper->createUserOnly()) {
-            $this->messages[] = 'Unable to create user for ' . $email . ': ' . $userHelper->error;
+        try {
+            $createdUserId = $this->personHelper->saveUser(
+                    $this->buildUserName($member),
+                    $email,
+                    0,
+                    PersonHelper::USER_MODE_IMPORT
+            );
+        } catch (\Throwable $exception) {
+            $this->messages[] = 'Unable to create user for ' . $email . ': ' . $exception->getMessage();
             return false;
         }
 
         $this->count_new_users++;
+        $this->new_users[] = $this->buildUserName($member) . ',' . $email;
 
-        return (int) $userHelper->user_id;
+        return (int) $createdUserId;
     }
 
-    private function ensurePrimarySubscription($userId) {
+    private function ensurePrimarySubscription($userId, array $member = []) {
         if ((int) $userId <= 0 || !$this->primary_list) {
             return;
         }
 
         if ($this->mailHelper->subscribe($this->primary_list, (int) $userId, 1, 3)) {
+            $this->count_new_subs++;
+            $name = $this->buildUserName($member) ?: (string) $userId;
+            $email = $this->normaliseScalar($member['email'] ?? null) ?: '';
+            $this->new_subs[] = $name . ',' . $email;
             $this->messages[] = 'Subscription created to list ' . $this->primary_list;
         } else {
             $this->messages[] = 'Error creating subscription to list ' . $this->primary_list . ': ' . $this->mailHelper->message;
@@ -332,7 +353,23 @@ class LoadHelper {
     private function resolveProfileRow($member) {
         $memberRef = $this->normaliseScalar($member['memberRef'] ?? null);
 
-        return array($this->getProfileByMemberRef($memberRef), false);
+        $profile = $this->getProfileByMemberRef($memberRef);
+
+        if ($profile !== null) {
+            return array($profile, false);
+        }
+
+        // Legacy Insight loads may not have stored the same memberRef as the
+        // JSON feed. Membership number is the stable cross-feed identifier,
+        // so use it as a fallback when resolving an existing profile.
+        $membershipNo = $this->normaliseScalar($member['membershipNo'] ?? null);
+        $profiles = $this->getProfilesByMembershipNo($membershipNo);
+
+        if (count($profiles) === 1) {
+            return array($profiles[0], true);
+        }
+
+        return array(null, false);
     }
 
     private function resolveUserId($member, $profileRow) {
@@ -366,6 +403,9 @@ class LoadHelper {
                 }
 
                 $this->updateUserRecord($existingUserId, $member, $existingUser);
+                // Presence in a validated import confirms a previously
+                // self-registered, blocked account as a real person.
+                $this->personHelper->setBlocked($existingUserId, false);
 
                 return array($existingUserId, false, false);
             }
@@ -382,6 +422,7 @@ class LoadHelper {
             }
 
             $this->updateUserRecord((int) $matchedUser->id, $member, $matchedUser);
+            $this->personHelper->setBlocked((int) $matchedUser->id, false);
 
             return array((int) $matchedUser->id, false, true);
         }
@@ -521,6 +562,10 @@ class LoadHelper {
         $sql .= 'WHERE group_code=' . $this->db->quote($code);
         $sql .= ' AND group_primary=' . $this->db->quote($code);
         return $this->toolsHelper->getValue($sql);
+    }
+
+    public function getPrimaryListId(): int {
+        return (int) $this->primary_list;
     }
 
     private function getApiSiteConfig(int $apiSiteId): SupporterApiConfig {
@@ -795,6 +840,20 @@ class LoadHelper {
         $columns = $this->getProfileColumns();
         $data = array_intersect_key($member, $columns);
 
+        foreach ([
+            'membershipJoinDate',
+            'membershipExpiry',
+            'areaJoinedDate',
+            'teamRelationshipFrom',
+            'emailConsentLastUpdated',
+            'postConsentLastUpdated',
+            'phoneConsentLastUpdated',
+        ] as $dateField) {
+            if (array_key_exists($dateField, $data) && $data[$dateField] !== null && $data[$dateField] !== '') {
+                $data[$dateField] = $this->normaliseInsightDate($data[$dateField], $dateField);
+            }
+        }
+
         // home_group currently duplicates the source groupCode. Keep legacy
         // profiles usable until that redundancy is removed by ensuring a blank
         // value is populated by either import path.
@@ -825,6 +884,31 @@ class LoadHelper {
         }
 
         return $data;
+    }
+
+    private function normaliseInsightDate($value, string $fieldName): string {
+        $value = trim((string) $value);
+
+        foreach ([
+            '!Y-m-d',
+            '!d/m/Y',
+            '!j/n/Y',
+            '!d-m-Y',
+            '!j-n-Y',
+            '!d/m/Y H:i:s',
+            '!j/n/Y H:i:s',
+            '!d/m/Y H.i.s',
+            '!j/n/Y H.i.s',
+        ] as $format) {
+            $date = \DateTimeImmutable::createFromFormat($format, $value);
+            $errors = \DateTimeImmutable::getLastErrors();
+
+            if ($date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        throw new \InvalidArgumentException($fieldName . ': invalid date "' . $value . '".');
     }
 
     private function createProfileAudit($objectId, $recordType, $fieldName = '', $oldValue = null, $newValue = null) {
@@ -883,6 +967,14 @@ class LoadHelper {
             $member = $this->mapSupporterToProfileData($supporter);
         } catch (\Throwable $exception) {
             $this->logMessage('Skipped supporter that could not be mapped: ' . $exception->getMessage(), '3');
+            return false;
+        }
+
+        $email = $this->normaliseScalar($member['email'] ?? null);
+        $memberName = trim((string) ($member['firstName'] ?? '') . ' ' . (string) ($member['lastName'] ?? ''));
+        if ($email !== null && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            $this->count_errors++;
+            $this->messages[] = 'Invalid email ' . $email . ' found for ' . ($memberName !== '' ? $memberName : 'unknown member');
             return false;
         }
 
@@ -957,7 +1049,7 @@ class LoadHelper {
             $this->syncRoles($profile, $supporter);
 
             if ($linkRequiresSubscription && (int) $userId > 0) {
-                $this->ensurePrimarySubscription((int) $userId);
+                $this->ensurePrimarySubscription((int) $userId, $member);
             }
 
             $this->db->transactionCommit();
@@ -984,6 +1076,11 @@ class LoadHelper {
         $this->count_new_users = 0;
         $this->count_updated = 0;
         $this->count_not_updated = 0;
+        $this->count_errors = 0;
+        $this->count_missing_email = 0;
+        $this->new_users = [];
+        $this->count_new_subs = 0;
+        $this->new_subs = [];
         $this->count_records = count($members);
         $this->count_errors = 0;
         $this->count_lapsed = 0;
@@ -995,19 +1092,22 @@ class LoadHelper {
                         $members
         ));
 
+        // The first valid record establishes the group for this import.  The
+        // file must not silently mix groups, since the primary subscription
+        // list is selected from this value.
+        $importGroupCode = strtoupper(trim((string) ($members[0]['groupCode'] ?? '')));
+        if (!preg_match('/^[A-Z0-9]{4}$/', $importGroupCode)) {
+            $this->messages[] = 'The first valid Insight record does not contain a valid group code.';
+            $this->count_errors++;
+            return false;
+        }
+
         if ($mode === MemberFeedMode::INSIGHT_PRIMARY && !$preview) {
-            $code = strtoupper(trim((string) ComponentHelper::getParams('com_ra_tools')->get('default_group', '')));
-
-            if (!preg_match('/^[A-Z0-9]{4}$/', $code)) {
-                $this->messages[] = 'com_ra_tools default_group must contain four letters or digits.';
-                return false;
-            }
-
-            $this->currentGroupCode = $code;
-            $this->primary_list = $this->getDefaultList($code);
+            $this->currentGroupCode = $importGroupCode;
+            $this->primary_list = $this->getDefaultList($importGroupCode);
 
             if (!$this->primary_list) {
-                $this->messages[] = 'Unable to find the default mailing list for ' . $code;
+                $this->messages[] = 'Unable to find the default mailing list for ' . $importGroupCode;
                 return false;
             }
         }
@@ -1019,11 +1119,24 @@ class LoadHelper {
             $rowNumber = (int) ($member['_row'] ?? 0);
             $rowLabel = $rowNumber > 0 ? 'Row ' . $rowNumber . ': ' : '';
 
+            $recordGroupCode = strtoupper(trim((string) ($member['groupCode'] ?? '')));
+            if ($recordGroupCode !== $importGroupCode) {
+                $this->messages[] = $rowLabel . 'group code ' . $recordGroupCode
+                        . ' does not match the first valid record group code ' . $importGroupCode . '; record ignored.';
+                $this->count_errors++;
+                $ok = false;
+                continue;
+            }
+
             if ($membershipNo === '' || ($membershipCounts[$membershipNo] ?? 0) > 1) {
                 $this->messages[] = $rowLabel . 'duplicate or missing membership number; record ignored.';
                 $this->count_errors++;
                 $ok = false;
                 continue;
+            }
+
+            if ($this->normaliseScalar($member['email'] ?? null) === null) {
+                $this->count_missing_email++;
             }
 
             $profiles = $this->getProfilesByMembershipNo($membershipNo);
@@ -1054,6 +1167,10 @@ class LoadHelper {
                 $this->count_errors++;
                 $ok = false;
             }
+        }
+
+        if ($this->count_missing_email > 0) {
+            $this->messages[] = 'Records without email address: ' . $this->count_missing_email;
         }
 
         // A profile with an Insight import marker which is absent from the
@@ -1162,7 +1279,7 @@ class LoadHelper {
             }
 
             if ($linkRequiresSubscription && (int) $userId > 0) {
-                $this->ensurePrimarySubscription((int) $userId);
+                $this->ensurePrimarySubscription((int) $userId, $member);
             }
 
             $this->db->transactionCommit();
@@ -1256,6 +1373,11 @@ class LoadHelper {
         $this->count_legacy_profiles_reused = 0;
         $this->count_updated = 0;
         $this->count_not_updated = 0;
+        $this->count_errors = 0;
+        $this->count_missing_email = 0;
+        $this->new_users = [];
+        $this->count_new_subs = 0;
+        $this->new_subs = [];
 
         if (is_object($members) && isset($members->members)) {
             $members = $members->members;
@@ -1276,7 +1398,15 @@ class LoadHelper {
 
         foreach ($members as $member) {
             $count++;
+            $normalisedMember = $this->normaliseMember($member);
+            if ($this->normaliseScalar($normalisedMember['email'] ?? null) === null) {
+                $this->count_missing_email++;
+            }
             $this->syncMember($member);
+        }
+
+        if ($this->count_missing_email > 0) {
+            $this->messages[] = 'Records without email address: ' . $this->count_missing_email;
         }
 
         return $count;
