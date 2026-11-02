@@ -163,7 +163,7 @@ class Com_Ra_membersInstallerScript {
         if ($type == 'uninstall') {
             return true;
         }
-        $new_version =$this->getInstalledComponentVersion();
+        $new_version = $this->getInstalledComponentVersion();
         if ($this->original_version !== $new_version) {
             echo '<p>com_ra_members has been upgraded from ' . $this->original_version . ' to ' . $new_version . '</p>';
         } else {
@@ -173,14 +173,14 @@ class Com_Ra_membersInstallerScript {
             $this->red('Please review and update the configuration settings for com_ra_members.');
         }
         $message = '<b>Useful links</b><br>'
-                . $this->toolsHelper->buildButton('index.php?option=com_ra_tools&view=dashboard', 'Dashboard', false, 'granite') . '<br>'
-                . $this->toolsHelper->buildButton('index.php?option=com_config&view=component&component=com_ra_members', 'Configure');
+                . $this->toolsHelper->buildButton('administrator/index.php?option=com_ra_tools&view=dashboard', 'Dashboard', false, 'granite') . '<br>'
+                . $this->toolsHelper->buildButton('administrator/index.php?option=com_config&view=component&component=com_ra_members', 'Configure');
         echo $message;
         return true;
     }
 
     public function preflight($type, $parent): bool {
-        $this->message('Preflight RA Members component(type=' . $type . ').');
+        $this->message('Preflight RA Members component (type=' . $type . ').');
         if ($type == 'uninstall') {
             return true;
         }
@@ -211,8 +211,6 @@ class Com_Ra_membersInstallerScript {
             if ($this->original_version === null) {
                 $this->message('Installer could not find readable version information for com_ra_members.');
             }
-
-            $this->message('com_ra_members already present, version=' . $this->original_version . '.');
         } else {
             $this->message('Installer could not find the existing com_ra_members installation.');
         }
@@ -228,9 +226,6 @@ class Com_Ra_membersInstallerScript {
 
         if (version_compare($this->original_version, '1.2', 'le')) {
             $this->schemaHelper->checkColumn('ra_organisations', 'notes', 'A', 'MEDIUMTEXT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NULL AFTER details; ');
-            $this->schemaHelper->checkColumn('ra_organisations', 'uses_ra_tools', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER mailman_active; ');
-            $this->schemaHelper->checkColumn('ra_organisations', 'uses_ra_mailman', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER uses_ra_tools; ');
-            $this->schemaHelper->checkColumn('ra_organisations', 'uses_ngx', 'A', 'CHAR(1) NULL DEFAULT NULL AFTER uses_ra_mailman; ');
             $this->checkColumn('ra_organisations', 'email_header', 'U', 'VARCHAR(255); ');
         }
         return true;

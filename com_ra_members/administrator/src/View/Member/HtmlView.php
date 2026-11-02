@@ -82,7 +82,7 @@ class HtmlView extends BaseHtmlView {
             return 'Not given';
         }
     }
-    
+
     /**
      * Format a date value.
      *
@@ -90,7 +90,6 @@ class HtmlView extends BaseHtmlView {
      *
      * @return string  The formatted date or 'Not given' if the value is empty or null.
      */
-    
     public function formatDate($value) {
         if ($value === '' || is_null($value)) {
             return 'Not given';
@@ -100,15 +99,15 @@ class HtmlView extends BaseHtmlView {
     }
 
     public function showAudit() {
-        $sql='SELECT * FROM #__ra_profiles_audit ';
+        $sql = 'SELECT * FROM #__ra_profiles_audit ';
         $sql .= 'WHERE object_id = ' . $this->item->id;
         $sql .= ' ORDER BY date_amended DESC';
-        $rows = $this->toolsHelper->getRows($sql);    
+        $rows = $this->toolsHelper->getRows($sql);
         if (!empty($rows)) {
             echo '<h4>Audit Trail</h4>';
             $table = new ToolsTable();
-            $table->add_header("Updated,Field,Action,Value");     
-            foreach ($rows as $row) {        
+            $table->add_header("Updated,Field,Action,Value");
+            foreach ($rows as $row) {
                 $table->add_item(HTMLHelper::_('date', $row->date_amended, 'Y-m-d H:i'));
                 $table->add_item($row->field_name); // ;
                 $table->add_item($row->action);
@@ -120,7 +119,29 @@ class HtmlView extends BaseHtmlView {
     }
 
     public function showRoles() {
-        //      echo 'Roles<br>';
+        echo '<h4>Roles</h4>';
+        $sql = 'SELECT DISTINCT a.role, o.name ';
+        $sql .= 'FROM `#__ra_roles` AS a ';
+        $sql .= 'LEFT JOIN #__ra_organisations AS o ON o.code=a.organisation_code ';
+        $sql .= 'LEFT JOIN #__ra_profiles AS p ON p.member_id=a.member_id ';
+        $sql .= 'WHERE a.member_id = ' . $this->item->member_id;
+        $sql .= ' ORDER BY o.name, a.role';
+        $rows = $this->toolsHelper->getRows($sql);
+        if (!empty($rows)) {
+            $table = new ToolsTable();
+            $table->add_header("Group,Role,Action");
+            $rows = $this->toolsHelper->getRows($sql);
+            foreach ($rows as $row) {
+
+                $table->add_item($row->name);
+                $table->add_item($row->role);
+                $table->add_item('');
+                $table->generate_line();
+            }
+            $table->generate_table('Role');
+            $target = 'administrator/index.php?option=com_ra_members&view=role&member_id=' . $this->item->member_id;
+            echo $this->toolsHelper->buildButton($target, 'New Role');
+        }
     }
 
     public function showSubscriptions() {
@@ -132,7 +153,7 @@ class HtmlView extends BaseHtmlView {
         $sql .= 'LEFT JOIN #__ra_mail_lists as ml ON ml.id = ms.list_id ';
         $sql .= 'WHERE ms.user_id = ' . $this->item->id;
         $sql .= ' ORDER BY ms.created DESC';
-        $rows = $this->toolsHelper->getRows($sql);    
+        $rows = $this->toolsHelper->getRows($sql);
         if (!empty($rows)) {
             echo '<h4>Subscriptions</h4>';
             $table = new ToolsTable();
@@ -141,7 +162,7 @@ class HtmlView extends BaseHtmlView {
             foreach ($rows as $row) {
                 $table->add_item(HTMLHelper::_('date', $row->created, 'Y-m-d H:i'));
                 $table->add_item($row->group_code . '/' . $row->name);
-                
+
                 $table->add_item(($row->record_type == 1 ? 'Subscriber' : 'Author'));
                 $table->add_item($row->Method);
                 $table->generate_line();

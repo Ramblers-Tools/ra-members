@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Package Installation script
  * 25/10/26 CB Created from ra-treasurer
@@ -10,18 +11,17 @@ use Joomla\CMS\Log\Log;
 use Joomla\CMS\Extension\ExtensionHelper;
 use Joomla\CMS\Language\Text;
 
-class pkg_ra_membersInstallerScript
-{
+class pkg_ra_membersInstallerScript {
+
     private const MINIMUM_MAILMAN_VERSION = '5.1.3';
     private const MINIMUM_TOOLS_VERSION = '4.0.16';
 
-    private function getInstalledVersion(string $element = 'com_ra_members'): ?string
-    {
+    private function getInstalledVersion(string $element = 'com_ra_members'): ?string {
         $db = Factory::getContainer()->get('DatabaseDriver');
         $query = $db->getQuery(true)
-            ->select($db->quoteName('manifest_cache'))
-            ->from($db->quoteName('#__extensions'))
-            ->where($db->quoteName('element') . ' = ' . $db->quote($element));
+                ->select($db->quoteName('manifest_cache'))
+                ->from($db->quoteName('#__extensions'))
+                ->where($db->quoteName('element') . ' = ' . $db->quote($element));
         $db->setQuery($query);
 
         $manifestCache = $db->loadResult();
@@ -31,15 +31,14 @@ class pkg_ra_membersInstallerScript
         }
 
         $manifest = json_decode((string) $manifestCache, true);
-        return is_array($manifest) && isset($manifest['version']) ? (string)$manifest['version'] : null;
+        return is_array($manifest) && isset($manifest['version']) ? (string) $manifest['version'] : null;
     }
 
-    private function fail(string $message): bool
-    {
+    private function fail(string $message): bool {
         Factory::getApplication()->enqueueMessage($message, 'error');
         Log::add($message, Log::ERROR, 'jerror');
         // echo also helps surface the message in some installers
-        $this->message('<p style="color:#c00;"><strong>' . htmlspecialchars($message). '</strong></p>');
+        $this->message('<p style="color:#c00;"><strong>' . htmlspecialchars($message) . '</strong></p>');
         return false;
     }
 
@@ -57,7 +56,7 @@ class pkg_ra_membersInstallerScript
         if ($type == 'uninstall') {
             return true;
         }
-        $new_version =$this->getInstalledVersion();
+        $new_version = $this->getInstalledVersion();
         if ($this->original_version !== $new_version) {
             echo '<p>com_ra_members has been upgraded from ' . $this->original_version . ' to ' . $new_version . '</p>';
         } else {
@@ -67,20 +66,19 @@ class pkg_ra_membersInstallerScript
             $this->red('Please review and update the configuration settings for com_ra_members.');
         }
         $message = '<b>Useful links</b><br>'
-                . $this->buildButton('index.php?option=com_ra_tools&view=dashboard', 'Dashboard', false, 'granite') . '<br>'
-                . $this->buildButton('index.php?option=com_config&view=component&component=com_ra_members', 'Configure');
+                . $this->buildButton('/index.php?option=com_ra_tools&view=dashboard', 'Dashboard', false, 'granite') . '<br>'
+                . $this->buildButton('/index.php?option=com_config&view=component&component=com_ra_members', 'Configure');
         echo $message;
         return true;
     }
 
-    public function preflight($type, $parent): bool
-    {
+    public function preflight($type, $parent): bool {
         $this->message('Preflight RA Members package (type=' . $type . ').');
         if ($type === 'uninstall') {
             return true;
         }
 
-        // Check com_ra_tools 
+        // Check com_ra_tools
         $toolsVersion = $this->getInstalledVersion('com_ra_tools');
         if ($toolsVersion === null || version_compare($toolsVersion, self::MINIMUM_TOOLS_VERSION, '<')) {
             return $this->fail('RA Members requires com_ra_tools ' . self::MINIMUM_TOOLS_VERSION . ' or later; found ' . ($toolsVersion ?: 'not installed') . '.');
@@ -99,10 +97,11 @@ class pkg_ra_membersInstallerScript
         // All good
         return true;
     }
-    public fun
-    ction red($text) {
+
+    public function red($text) {
         echo '<p><span style="color: #ff0000;"><strong>';
         echo $text;
         echo '</strong></span></p>';
-    }    
+    }
+
 }

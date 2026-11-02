@@ -38,9 +38,6 @@
         >
             <option value="">- All records -</option>
             <option value="mailman_active">Mailman active</option>
-            <option value="uses_ra_tools">Uses RA Tools</option>
-            <option value="uses_ra_mailman">Uses RA Mailman</option>
-            <option value="uses_ngx">Uses NGX</option>
         </field>
     </fields>
 

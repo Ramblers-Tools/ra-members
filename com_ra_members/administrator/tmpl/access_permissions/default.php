@@ -60,7 +60,7 @@ if (empty($this->items)) {
     echo '<tr>' . PHP_EOL;
 
     echo '<th>' . 'Name' . '</th>' . PHP_EOL;
-
+    echo '<th>' . 'Tools' . '</th>' . PHP_EOL;
     echo '<th>' . 'Members' . '</th>' . PHP_EOL;
     echo '<th>' . 'Mailman' . '</th>' . PHP_EOL;
     echo '</tr>' . PHP_EOL;
@@ -71,6 +71,15 @@ if (empty($this->items)) {
     foreach ($this->items as $i => $item) {
         echo '<tr class="row' . $i % 2 . '">' . PHP_EOL;
         echo '<td>' . $item->preferred_name . '</td>';
+
+         echo '<td>';
+        if ((int) $item->access_to === 1) {
+            echo 'Y';
+        } else {
+            echo 'N';
+        }
+        echo ' ' . renderAccessButton($item->id, 'com_ra_tools', (int) $item->access_to === 1);
+        echo '</td>';
 
         echo '<td>';
         if ((int) $item->access_me === 1) {
@@ -106,6 +115,6 @@ if (empty($this->items)) {
 </div>
 </form>
 <?php
-echo 'This shows the users that have permission to access RA Members and/or RA Mailman. You can adjust their access 
+echo 'This shows the users that have permission to access RA Tools and/or RA Members and/or RA Mailman. You can adjust their access 
 using the buttons provided, and add a new User using the toolbar above.';
 

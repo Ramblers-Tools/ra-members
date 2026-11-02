@@ -102,13 +102,20 @@ class RoleModel extends AdminModel {
             $form->setFieldAttribute('member_id', 'visible', 'false');
             $form->setFieldAttribute('member_id', 'required', 'false');
         }
+        // If not set up in user state, see if it is passed as a parameter
+        if ($this->code == '') {
+            $this->code = $app->input->getWord('code', '');
+        }    
         if ($this->code == '') {
             $form->setFieldAttribute('group_name', 'visible', 'false');
             $form->setFieldAttribute('group_name', 'required', 'false');
         } else {
-            $form->setFieldAttribute('group_name', 'visible', 'true');
-            $form->setFieldAttribute('organisation_code', 'visible', 'false');
-            $form->setFieldAttribute('organisation_code', 'required', 'false');
+            $form->setValue('organisation_code', null, $this->code);
+            $form->setFieldAttribute('organisation_code', 'readonly', 'true');
+//            $form->setValue('group_name', null, $this->code);
+//            $form->setFieldAttribute('group_name', 'visible', 'true');
+//            $form->setFieldAttribute('organisation_code', 'visible', 'false');
+//            $form->setFieldAttribute('organisation_code', 'required', 'false');
         }
 
         return $form;

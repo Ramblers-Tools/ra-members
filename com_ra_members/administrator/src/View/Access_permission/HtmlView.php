@@ -2,6 +2,7 @@
 
 /**
  * 22/10/26 CB created
+ * 02/10/26 CB ensure only accessible to SuperUsers
  */
 
 namespace Ramblers\Component\Ra_members\Administrator\View\Access_permission;
@@ -38,6 +39,12 @@ class HtmlView extends BaseHtmlView {
      * @throws Exception
      */
     public function display($tpl = null) {
+        $this->toolsHelper = new ToolsHelper;
+        if (!$this->toolsHelper->isSuperuser()) {
+            $this->app->enqueueMessage('Access denied.', 'error');
+            $this->setRedirect($this->back);
+            return;
+        }        
         $this->state = $this->get('State');
         $this->form = $this->get('Form');
         $this->item = (object) ['id' => 0];

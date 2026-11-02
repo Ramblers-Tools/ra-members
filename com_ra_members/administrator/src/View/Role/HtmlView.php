@@ -75,7 +75,7 @@ class HtmlView extends BaseHtmlView {
 
         $canDo = ToolsHelper::getActions('com_ra_delivery');
 
-        ToolbarHelper::title(Text::_('Add Role'), "generic");
+        
 
         // If not checked out, can save the item.
         if (!$checkedOut && ($canDo->get('core.edit') || ($canDo->get('core.create')))) {
@@ -85,8 +85,10 @@ class HtmlView extends BaseHtmlView {
 
         if (empty($this->item->id)) {
             ToolbarHelper::cancel('role.cancel', 'JTOOLBAR_CANCEL');
+            ToolbarHelper::title(Text::_('Add Role'), "generic");
         } else {
             ToolbarHelper::cancel('role.cancel', 'JTOOLBAR_CLOSE');
+            ToolbarHelper::title(Text::_('Update Role'), "generic");
         }
     }
 

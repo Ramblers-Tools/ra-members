@@ -8,9 +8,18 @@
            label="User" 
            description="Preferred_name of the User" />
     <field
+        name="access_to"
+        type="radio"
+        label="Grant access to RA Tools"
+        default="0"
+    >
+        <option value="0">No</option>
+        <option value="1">Yes</option>
+    </field>  
+    <field
         name="access_me"
         type="radio"
-        label="Grant access to Members"
+        label="Grant access to RA Members"
         default="0"
     >
         <option value="0">No</option>
@@ -19,7 +28,7 @@
     <field
         name="access_ma"
         type="radio"
-        label="Grant access to Mailman"
+        label="Grant access to RA Mailman"
         default="0"
     >
         <option value="0">No</option>

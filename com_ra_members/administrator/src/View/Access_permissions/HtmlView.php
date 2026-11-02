@@ -2,6 +2,7 @@
 
 /**
  * 22/10/26 CB created
+ * 02/10/26 CB ensure only accessible to SuperUsers
  */
 
 namespace Ramblers\Component\Ra_members\Administrator\View\Access_permissions;
@@ -45,6 +46,11 @@ class HtmlView extends BaseHtmlView {
     public function display($tpl = null) {
         $this->app = Factory::getApplication();
         $this->toolsHelper = new ToolsHelper;
+        if (!$this->toolsHelper->isSuperuser()) {
+            $this->app->enqueueMessage('Access denied.', 'error');
+            $this->setRedirect($this->back);
+            return;
+        }         
         $this->getItems();
 
         $this->addToolbar();
@@ -86,13 +92,14 @@ class HtmlView extends BaseHtmlView {
 
     private function getItems() {
         $sql = 'SELECT u.id, p.preferred_name, ';
+        $sql .= 'MAX(CASE WHEN g.title = "com_ra_tools" THEN 1 ELSE 0 END) AS access_to, ';
         $sql .= 'MAX(CASE WHEN g.title = "com_ra_members" THEN 1 ELSE 0 END) AS access_me, ';
         $sql .= 'MAX(CASE WHEN g.title = "com_ra_mailman" THEN 1 ELSE 0 END) AS access_ma ';
         $sql .= 'FROM #__users AS u ';
         $sql .= 'INNER JOIN #__ra_profiles AS p ON p.id = u.id ';
         $sql .= 'INNER JOIN #__user_usergroup_map AS m ON m.user_id = u.id ';
         $sql .= 'INNER JOIN #__usergroups AS g ON g.id = m.group_id ';
-        $sql .= 'WHERE g.title IN ("com_ra_members", "com_ra_mailman") ';
+        $sql .= 'WHERE g.title IN ("com_ra_tools", "com_ra_members", "com_ra_mailman") ';
         $sql .= 'GROUP BY u.id, p.preferred_name ';
         $sql .= 'ORDER BY p.preferred_name';
         $this->items = $this->toolsHelper->getRows($sql);

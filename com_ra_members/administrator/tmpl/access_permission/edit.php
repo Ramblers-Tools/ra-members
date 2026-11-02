@@ -26,6 +26,7 @@ HTMLHelper::_('bootstrap.tooltip');
             <fieldset class="adminform">
                 <?php echo $this->form->renderField('id'); ?>
                 <?php echo $this->form->renderField('user'); ?>
+                <?php echo $this->form->renderField('access_to'); ?>
                 <?php echo $this->form->renderField('access_me'); ?>
                 <?php echo $this->form->renderField('access_ma'); ?>
             </fieldset>
@@ -37,4 +38,4 @@ HTMLHelper::_('bootstrap.tooltip');
 
 </form>
 <?php
-echo 'Select a User to be added, and specify if they can access RA Members and/or RA Mailman.';
+echo 'Select a User to be added, and specify if they can access RA Tools and/or RA Members and/or RA Mailman.';

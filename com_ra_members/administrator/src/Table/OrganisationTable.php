@@ -60,16 +60,6 @@ class OrganisationTable extends Table implements VersionableTableInterface, Tagg
             $array['cluster'] = strtoupper(trim((string) $array['cluster']));
         }
 
-        if (empty($array['uses_ra_tools'])) {
-            $array['uses_ra_tools'] = null;
-        }
-        if (empty($array['uses_ra_mailman'])) {
-            $array['uses_ra_mailman'] = null;
-        }
-        if (empty($array['uses_ngx'])) {
-            $array['uses_ngx'] = null;
-        }
-
         if (!empty($array['logo'])) {
             $array['logo'] = $this->prepareLogoPath($array['logo']);
         }

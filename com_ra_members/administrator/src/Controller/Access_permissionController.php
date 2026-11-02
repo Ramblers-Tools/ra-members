@@ -2,6 +2,7 @@
 
 /**
  * 22/10/26 CB created
+ * 02/10/26 CB ensure grant/revoke only accessible to SuperUsers
  */
 
 namespace Ramblers\Component\Ra_members\Administrator\Controller;
@@ -61,6 +62,101 @@ class Access_permissionController extends FormController {
         return Factory::getContainer()->get(DatabaseInterface::class);
     }
 
+    public function grant(): void {
+        $this->checkToken();
+
+        if (!$this->toolsHelper->isSuperuser()) {
+            $this->app->enqueueMessage('Access denied.', 'error');
+            $this->setRedirect($this->back);
+            return;
+        }
+        $userId = $this->app->input->getInt('user_id', 0);
+        $component = $this->app->input->getCmd('component', '');
+        $groupId = $this->lookupGroupId($component);
+
+        if ($userId <= 0 || $groupId <= 0) {
+            $this->app->enqueueMessage('Invalid parameters for grant: User ' . $userId . ', component ' . $component, 'error');
+            $this->setRedirect($this->back);
+            return;
+        }
+
+        if ($this->setAccess($userId, $component, true)) {
+            $this->app->enqueueMessage('Access granted for ' . $component . '.', 'message');
+        } else {
+            $this->app->enqueueMessage('Unable to grant access for ' . $component . '.', 'error');
+        }
+
+        $this->setRedirect($this->back);
+    }
+
+    private function lookupGroupId(string $component): int {
+        if (!in_array($component, ['com_ra_tools', 'com_ra_members', 'com_ra_mailman'], true)) {
+            return 0;
+        }
+
+        $db = $this->getDatabase();
+        $query = $db->getQuery(true)
+                ->select($db->quoteName('id'))
+                ->from($db->quoteName('#__usergroups'))
+                ->where($db->quoteName('title') . ' = ' . $db->quote($component));
+        $db->setQuery($query);
+
+        return (int) $db->loadResult();
+    }
+
+    public function revoke(): void {
+        $this->checkToken();
+
+        if (!$this->toolsHelper->isSuperuser()) {
+            $this->app->enqueueMessage('Access denied.', 'error');
+            $this->setRedirect($this->back);
+            return;
+        }
+
+        $userId = $this->app->input->getInt('user_id', 0);
+        $component = $this->app->input->getCmd('component', '');
+        $groupId = $this->lookupGroupId($component);
+
+        if ($userId <= 0 || $groupId <= 0) {
+            $this->app->enqueueMessage('Invalid parameters for revoke.', 'error');
+            $this->setRedirect($this->back);
+            return;
+        }
+
+        if ($this->setAccess($userId, $component, false)) {
+            $this->app->enqueueMessage('Access revoked for ' . $component . '.', 'message');
+        } else {
+            $this->app->enqueueMessage('Unable to revoke access for ' . $component . '.', 'error');
+        }
+        $this->setRedirect($this->back);
+    }
+
+    public function save($key = null, $urlVar = null): void {
+        $this->checkToken();
+
+        $data = $this->app->input->post->get('jform', [], 'array');
+        $userId = (int) ($data['user'] ?? 0);
+        $membersEnabled = (int) ($data['access_me'] ?? 0) === 1;
+        $mailmanEnabled = (int) ($data['access_ma'] ?? 0) === 1;
+
+        if ($userId <= 0) {
+            $this->app->enqueueMessage('Please select a user.', 'error');
+            $this->setRedirect('index.php?option=com_ra_members&view=access_permission&layout=edit');
+            return;
+        }
+
+        $okMembers = $this->setAccess($userId, 'com_ra_members', $membersEnabled);
+        $okMailman = $this->setAccess($userId, 'com_ra_mailman', $mailmanEnabled);
+
+        if ($okMembers && $okMailman) {
+            $this->app->enqueueMessage('Access permissions updated.', 'message');
+        } else {
+            $this->app->enqueueMessage('Failed to update one or more permissions.', 'warning');
+        }
+
+        $this->setRedirect($this->back);
+    }
+
     private function setAccess(int $userId, string $component, bool $enabled): bool {
         $groupId = $this->lookupGroupId($component);
 
@@ -97,90 +193,5 @@ class Access_permissionController extends FormController {
         }
 
         return true;
-    }
-
-    public function save($key = null, $urlVar = null): void {
-        $this->checkToken();
-
-        $data = $this->app->input->post->get('jform', [], 'array');
-        $userId = (int) ($data['user'] ?? 0);
-        $membersEnabled = (int) ($data['access_me'] ?? 0) === 1;
-        $mailmanEnabled = (int) ($data['access_ma'] ?? 0) === 1;
-
-        if ($userId <= 0) {
-            $this->app->enqueueMessage('Please select a user.', 'error');
-            $this->setRedirect('index.php?option=com_ra_members&view=access_permission&layout=edit');
-            return;
-        }
-
-        $okMembers = $this->setAccess($userId, 'com_ra_members', $membersEnabled);
-        $okMailman = $this->setAccess($userId, 'com_ra_mailman', $mailmanEnabled);
-
-        if ($okMembers && $okMailman) {
-            $this->app->enqueueMessage('Access permissions updated.', 'message');
-        } else {
-            $this->app->enqueueMessage('Failed to update one or more permissions.', 'warning');
-        }
-
-        $this->setRedirect($this->back);
-    }
-
-    public function grant(): void {
-        $this->checkToken();
-
-        $userId = $this->app->input->getInt('user_id', 0);
-        $component = $this->app->input->getCmd('component', '');
-        $groupId = $this->lookupGroupId($component);
-
-        if ($userId <= 0 || $groupId <= 0) {
-            $this->app->enqueueMessage('Invalid parameters for grant: User ' . $userId . ', component ' . $component, 'error');
-            $this->setRedirect($this->back);
-            return;
-        }
-
-        if ($this->setAccess($userId, $component, true)) {
-            $this->app->enqueueMessage('Access granted for ' . $component . '.', 'message');
-        } else {
-            $this->app->enqueueMessage('Unable to grant access for ' . $component . '.', 'error');
-        }
-
-        $this->setRedirect($this->back);
-    }
-
-    private function lookupGroupId(string $component): int {
-        if (!in_array($component, ['com_ra_members', 'com_ra_mailman'], true)) {
-            return 0;
-        }
-
-        $db = $this->getDatabase();
-        $query = $db->getQuery(true)
-                ->select($db->quoteName('id'))
-                ->from($db->quoteName('#__usergroups'))
-                ->where($db->quoteName('title') . ' = ' . $db->quote($component));
-        $db->setQuery($query);
-
-        return (int) $db->loadResult();
-    }
-
-    public function revoke(): void {
-        $this->checkToken();
-
-        $userId = $this->app->input->getInt('user_id', 0);
-        $component = $this->app->input->getCmd('component', '');
-        $groupId = $this->lookupGroupId($component);
-
-        if ($userId <= 0 || $groupId <= 0) {
-            $this->app->enqueueMessage('Invalid parameters for revoke.', 'error');
-            $this->setRedirect($this->back);
-            return;
-        }
-
-        if ($this->setAccess($userId, $component, false)) {
-            $this->app->enqueueMessage('Access revoked for ' . $component . '.', 'message');
-        } else {
-            $this->app->enqueueMessage('Unable to revoke access for ' . $component . '.', 'error');
-        }
-        $this->setRedirect($this->back);
-    }
-
+    }    
 }
